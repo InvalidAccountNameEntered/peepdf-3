@@ -51,6 +51,7 @@ try:
 
 except ModuleNotFoundError:
     JS_MODULE = False
+    STPyV8 = None
 
 ERROR_LOG = f"peepdf_jserrors-{dt.now().strftime(DTFMT)}.txt"
 currentDir = os.getcwd()
