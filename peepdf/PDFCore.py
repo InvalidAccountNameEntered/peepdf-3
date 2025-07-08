@@ -7671,7 +7671,7 @@ class PDFParser:
                 if objectType == "array":
                     fileIdElements = fileId.getElements()
                     if fileIdElements is not None and fileIdElements != []:
-                        for idx, fileIdElement in fileIdElements:
+                        for idx, fileIdElement in enumerate(fileIdElements):
                             # Fixes out of range index error
                             rawFileIdElementValue = fileIdElement.getRawValue()
                             fileId += f"[{rawFileIdElementValue}]"
