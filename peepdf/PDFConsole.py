@@ -86,7 +86,7 @@ except ModuleNotFoundError:
         DTFMT,
     )
     from PDFCrypto import xor
-    from JSAnalysis import isJavascript, analyseJS, unescape, JS_MODULE
+    from JSAnalysis import isJavascript, analyseJS, unescape, JS_MODULE, STPyV8
     from PDFCore import (
         PDFFile,
         PDFHexString,
