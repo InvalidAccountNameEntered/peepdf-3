@@ -546,7 +546,10 @@ class PDFName(PDFObject):
         self.uriList = []
         self.references = []
         self.compressedIn = None
-        if name[0] == "/":
+        if len(name) == 0:
+            # Fix for out of range
+            self.rawValue = self.value = self.encryptedValue = ''
+        elif name[0] == "/":
             self.rawValue = self.value = self.encryptedValue = name
         else:
             self.rawValue = self.value = self.encryptedValue = f"/{name}"
@@ -7668,14 +7671,12 @@ class PDFParser:
                 if objectType == "array":
                     fileIdElements = fileId.getElements()
                     if fileIdElements is not None and fileIdElements != []:
-                        if fileIdElements[0] is not None:
-                            fileId = f"[{fileIdElements[0].getRawValue()}]"
-                            fileIdElements[0].setValue(fileIdElements[0].getRawValue())
-                            pdfFile.setFileId(fileId)
-                        if fileIdElements[1] is not None:
-                            fileId += f"[{fileIdElements[1].getRawValue()}]"
-                            fileIdElements[1].setValue(fileIdElements[1].getRawValue())
-                            pdfFile.setFileId(fileId)
+                        for idx, fileIdElement in fileIdElements:
+                            # Fixes out of range index error
+                            rawFileIdElementValue = fileIdElement.getRawValue()
+                            fileId += f"[{rawFileIdElementValue}]"
+                            fileIdElements[idx].setValue(rawFileIdElementValue)
+                            pdfFile.setFieldId(fileId)
             pdfFile.addTrailer([trailer, streamTrailer])
         if pdfFile.isEncrypted() and pdfFile.getEncryptDict() is not None:
             ret = pdfFile.decrypt()
