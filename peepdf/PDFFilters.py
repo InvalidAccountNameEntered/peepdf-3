@@ -521,7 +521,7 @@ def post_prediction(decodedStream, predictor, columns, colors, bits):
     # TIFF - 2
     # http://www.gnupdf.org/PNG_and_TIFF_Predictors_Filter#TIFF
     if predictor == 2:
-        numRows = len(decodedStream) / bytesPerRow
+        numRows = int(len(decodedStream) / bytesPerRow)
         bitmask = 2**bits - 1
         outputBitsStream = ""
         for rowIndex in range(numRows):
