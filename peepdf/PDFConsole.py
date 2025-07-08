@@ -50,7 +50,7 @@ try:
         DTFMT,
     )
     from peepdf.PDFCrypto import xor
-    from peepdf.JSAnalysis import isJavascript, analyseJS, unescape, JS_MODULE
+    from peepdf.JSAnalysis import isJavascript, analyseJS, unescape, JS_MODULE, STPyV8
     from peepdf.PDFCore import (
         PDFFile,
         PDFHexString,
