@@ -38,14 +38,14 @@ try:
     from peepdf.PDFUtils import vtcheck, getPeepJSON, getPeepXML, getUpdate, DTFMT
     from peepdf.PDFVulns import vulnsDict
     from peepdf.PDFConsole import PDFConsole, EMU_MODULE
-    from peepdf.JSAnalysis import JS_MODULE, STPyV8
+    from peepdf.JSAnalysis import JS_MODULE
     from peepdf.PDFFilters import PIL_MODULE
 except ModuleNotFoundError:
     from PDFCore import PDFParser, VERSION
     from PDFUtils import vtcheck, getPeepJSON, getPeepXML, getUpdate, DTFMT
     from PDFVulns import vulnsDict
     from PDFConsole import PDFConsole, EMU_MODULE
-    from JSAnalysis import JS_MODULE, STPyV8
+    from JSAnalysis import JS_MODULE
     from PDFFilters import PIL_MODULE
 
 try:
