@@ -7674,9 +7674,9 @@ class PDFParser:
                         for idx, fileIdElement in enumerate(fileIdElements):
                             # Fixes out of range index error
                             rawFileIdElementValue = fileIdElement.getRawValue()
-                            fileId += f"[{rawFileIdElementValue}]"
+                            fileId.append(f"[{rawFileIdElementValue}]")
                             fileIdElements[idx].setValue(rawFileIdElementValue)
-                            pdfFile.setFieldId(fileId)
+                            pdfFile.setFileId(fileId)
             pdfFile.addTrailer([trailer, streamTrailer])
         if pdfFile.isEncrypted() and pdfFile.getEncryptDict() is not None:
             ret = pdfFile.decrypt()
