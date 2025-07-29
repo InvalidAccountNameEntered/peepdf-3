@@ -29,20 +29,28 @@ import sys
 import os
 import argparse
 import traceback
+import logging
 from datetime import datetime as dt
 from operator import attrgetter
 
 
 try:
     from peepdf.PDFCore import PDFParser, VERSION
-    from peepdf.PDFUtils import vtcheck, getPeepJSON, getPeepXML, getUpdate, DTFMT
+    from peepdf.PDFUtils import (
+        vtcheck,
+        getPeepJSON,
+        getPeepXML,
+        getUpdate,
+        DTFMT,
+        ppdfLog,
+    )
     from peepdf.PDFVulns import vulnsDict
     from peepdf.PDFConsole import PDFConsole, EMU_MODULE
     from peepdf.JSAnalysis import JS_MODULE
     from peepdf.PDFFilters import PIL_MODULE
 except ModuleNotFoundError:
     from PDFCore import PDFParser, VERSION
-    from PDFUtils import vtcheck, getPeepJSON, getPeepXML, getUpdate, DTFMT
+    from PDFUtils import vtcheck, getPeepJSON, getPeepXML, getUpdate, DTFMT, ppdfLog
     from PDFVulns import vulnsDict
     from PDFConsole import PDFConsole, EMU_MODULE
     from JSAnalysis import JS_MODULE
@@ -55,50 +63,27 @@ try:
 except ModuleNotFoundError:
     COLORIZED_OUTPUT = False
 
-VT_KEY = f"YOUR KEY GOES ON LINE 58 OF {__file__}, USE set vt_key yourAPIkey in interactive mode instead of -c, OR use -k yourAPIkey with -c"
-ERROR_LOG = f"peepdf_errors-{dt.now().strftime(DTFMT)}.txt"
-
-
-class SortHelp(argparse.HelpFormatter):
-    def add_arguments(self, actions):
-        actions = sorted(actions, key=attrgetter("option_strings"))
-        super().add_arguments(actions)
+VT_KEY = f"YOUR KEY GOES ON LINE 66 OF {__file__}, USE set vt_key yourAPIkey in interactive mode instead of -c, OR use -k yourAPIkey with -c"
 
 
 def main():
-    global COLORIZED_OUTPUT
+    global COLORIZED_OUTPUT, errorsFile
     versionHeader = f"Version: peepdf {VERSION}"
     author = "Jose Miguel Esparza and Corey Forman"
     url = "https://github.com/digitalsleuth/peepdf-3"
     newLine = os.linesep
-    currentDir = os.getcwd()
-    errorsFile = os.path.join(currentDir, ERROR_LOG)
-    peepdfHeader = f"{versionHeader}{newLine * 2}{url}{newLine}{author}{newLine}"
+    now = dt.now().strftime(DTFMT)
+    ERROR_LOG = f"peepdf-errors-NOFILE-{now}.txt"
+    errorsFile = os.path.join(os.getcwd(), ERROR_LOG)
     argsParser = argparse.ArgumentParser(
         usage="peepdf [options] pdf",
         description=versionHeader,
-        formatter_class=SortHelp,
+        epilog=f"{versionHeader}{newLine}{url}{newLine}{author}{newLine}",
     )
     argsParser.add_argument(
         "pdf",
         help="PDF File",
         nargs="?",
-    )
-    argsParser.add_argument(
-        "-i",
-        "--interactive",
-        action="store_true",
-        dest="isInteractive",
-        default=False,
-        help="Sets console mode.",
-    )
-    argsParser.add_argument(
-        "-s",
-        "--load-script",
-        action="store",
-        type=str,
-        dest="scriptFile",
-        help="Loads the commands stored in the specified file and execute them.",
     )
     argsParser.add_argument(
         "-c",
@@ -109,11 +94,12 @@ def main():
         help="Checks the hash of the PDF file on VirusTotal.",
     )
     argsParser.add_argument(
-        "-k",
-        "--key",
-        dest="vtApiKey",
-        default=VT_KEY,
-        help="VirusTotal API Key, used with -c/--check-vt",
+        "-C",
+        "--command",
+        action="append",
+        type=str,
+        dest="commands",
+        help="Specifies a command from the interactive console to be executed.",
     )
     argsParser.add_argument(
         "-f",
@@ -122,6 +108,37 @@ def main():
         dest="isForceMode",
         default=False,
         help="Sets force parsing mode to ignore errors.",
+    )
+    argsParser.add_argument(
+        "-g",
+        "--grinch-mode",
+        action="store_true",
+        dest="avoidColors",
+        default=False,
+        help="Avoids colorized output.",
+    )
+    argsParser.add_argument(
+        "-i",
+        "--interactive",
+        action="store_true",
+        dest="isInteractive",
+        default=False,
+        help="Sets console mode.",
+    )
+    argsParser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        dest="jsonOutput",
+        default=False,
+        help="Shows the document information in JSON format.",
+    )
+    argsParser.add_argument(
+        "-k",
+        "--key",
+        dest="vtApiKey",
+        default=VT_KEY,
+        help="VirusTotal API Key, used with -c/--check-vt",
     )
     argsParser.add_argument(
         "-l",
@@ -140,20 +157,26 @@ def main():
         help="Avoids automatic Javascript analysis. Useful with eternal loops like heap spraying.",
     )
     argsParser.add_argument(
-        "-g",
-        "--grinch-mode",
+        "-o",
+        "--ocr",
         action="store_true",
-        dest="avoidColors",
-        default=False,
-        help="Avoids colorized output.",
+        dest="getText",
+        help="Extract text from the PDF",
     )
     argsParser.add_argument(
-        "-v",
-        "--version",
+        "-s",
+        "--load-script",
+        action="store",
+        type=str,
+        dest="scriptFile",
+        help="Loads the commands stored in the specified file and execute them.",
+    )
+    argsParser.add_argument(
+        "-u",
+        "--update",
         action="store_true",
-        dest="version",
-        default=False,
-        help="Shows program's version number.",
+        dest="update",
+        help="Fetches updates for the Vulnerability List",
     )
     argsParser.add_argument(
         "-x",
@@ -164,42 +187,44 @@ def main():
         help="Shows the document information in XML format.",
     )
     argsParser.add_argument(
-        "-j",
-        "--json",
+        "--log",
         action="store_true",
-        dest="jsonOutput",
+        dest="log",
         default=False,
-        help="Shows the document information in JSON format.",
+        help="Enables logging to file.",
     )
     argsParser.add_argument(
-        "-C",
-        "--command",
-        action="append",
-        type=str,
-        dest="commands",
-        help="Specifies a command from the interactive console to be executed.",
-    )
-    argsParser.add_argument(
-        "-o",
-        "--ocr",
+        "--silent",
         action="store_true",
-        dest="getText",
-        help="Extract text from the PDF",
+        dest="silent",
+        default=False,
+        help="Prevents logging output to stdout.",
     )
     argsParser.add_argument(
-        "-u",
-        "--update",
+        "-v",
+        "--version",
         action="store_true",
-        dest="update",
-        help="Fetches updates for the Vulnerability List",
+        dest="version",
+        default=False,
+        help="Shows program's version number.",
     )
     args = argsParser.parse_args()
     numArgs = len(sys.argv) - 1
     stats = ""
     pdf = None
-    fileName = None
+    fileName = args.pdf
     statsDict = None
     vtJsonDict = None
+    if fileName is not None and os.path.exists(os.path.abspath(fileName)):
+        errorsFile = f"{os.path.abspath(args.pdf)}-{now}-peepdf.log"
+    elif fileName is not None and not os.path.exists(os.path.abspath(fileName)):
+        argsParser.error(f'[!] Error: The file "{args.pdf}" does not exist')
+    logger = ppdfLog(
+        log_to_file=args.log,
+        silent=args.silent,
+        file=errorsFile,
+        logger_name="peepdf",
+    )
 
     try:
         # Avoid colors in the output
@@ -215,9 +240,9 @@ def main():
             alertColor = Fore.RED
             staticColor = Fore.BLUE
             resetColor = Style.RESET_ALL
-        fileName = args.pdf
         if args.version:
-            print(peepdfHeader)
+            print(argsParser.epilog)
+            argsParser.exit()
         if args.update:
             if numArgs > 1:
                 print(
@@ -225,29 +250,27 @@ def main():
                 )
             getUpdate()
         else:
-            if fileName is not None and not os.path.exists(fileName):
-                sys.exit(f'[!] Error: The file "{fileName}" does not exist')
             if numArgs == 2 and fileName is not None:
                 if not os.path.exists(fileName):
-                    sys.exit(f'[!] Error: The file "{fileName}" does not exist')
+                    argsParser.error(f'[!] Error: The file "{fileName}" does not exist')
             elif numArgs == 2 and (args.isInteractive and args.avoidColors):
                 console = PDFConsole(pdf, VT_KEY, args.avoidColors)
                 try:
                     console.cmdloop()
                 except Exception as exc:
                     errorMessage = "[!] Error: Exception while launching Interactive mode without a PDF file"
-                    with open(errorsFile, "a", encoding="utf-8") as errorLog:
-                        traceback.print_exc(file=errorLog)
+                    logger.error(errorMessage)
+                    logger.error(str(exc))
                     raise Exception("PeepException", "Open an Issue on GitHub") from exc
             elif (numArgs > 4 and not fileName) or (
                 numArgs == 0 and not args.isInteractive
             ):
                 sys.exit(argsParser.print_help())
             if args.jsonOutput and args.xmlOutput:
-                sys.exit("[*] Only one of XML or JSON should be selected")
+                argsParser.error("[*] Only one of XML or JSON should be selected")
             if args.scriptFile is not None:
                 if not os.path.exists(args.scriptFile):
-                    sys.exit(
+                    argsParser.error(
                         f'[!] Error: The script file "{args.scriptFile}" does not exist'
                     )
             if fileName is not None:
@@ -271,7 +294,7 @@ def main():
                     if ret[0] == -1:
                         pdf.addError(ret[1])
                         if "not found" in ret[1]:
-                            sys.exit(f"[!] Error: {ret[1]} on VirusTotal.")
+                            argsParser.error(f"[!] Error: {ret[1]} on VirusTotal.")
                     else:
                         vtJsonDict = ret[1]
                         maliciousCount = vtJsonDict["data"]["attributes"][
@@ -292,7 +315,7 @@ def main():
                             f'https://www.virustotal.com/gui/file/{vtJsonDict["data"]["attributes"]["sha256"]}'
                         )
                 elif args.checkOnVT and "vt_key" in args.vtApiKey:
-                    sys.exit(
+                    argsParser.error(
                         f"[*] Warning: Your API key is not properly set - {VT_KEY}"
                     )
                 statsDict = pdf.getStats()
@@ -304,8 +327,8 @@ def main():
                     sys.stdout.write(xml)
                 except Exception as exc:
                     errorMessage = "[!] Error: Exception while generating the XML file"
-                    with open(errorsFile, "a", encoding="utf-8") as errorLog:
-                        traceback.print_exc(file=errorLog)
+                    logger.error(errorMessage)
+                    logger.error(str(exc))
                     raise Exception("PeepException", "Open an Issue on GitHub") from exc
             elif args.jsonOutput and not args.commands:
                 try:
@@ -315,8 +338,8 @@ def main():
                     errorMessage = (
                         "[!] Error: Exception while generating the JSON report"
                     )
-                    with open(errorsFile, "a", encoding="utf-8") as errorLog:
-                        traceback.print_exc(file=errorLog)
+                    logger.error(errorMessage)
+                    logger.error(str(exc))
                     raise Exception("PeepException", "Open an Issue on GitHub") from exc
             else:
                 if COLORIZED_OUTPUT and not args.avoidColors:
@@ -328,7 +351,7 @@ def main():
                     if os.path.exists(args.scriptFile):
                         scriptFileObject = open(args.scriptFile, "r")
                     else:
-                        sys.exit(
+                        argsParser.error(
                             f"[*] Warning: The file {args.scriptFile} cannot be found - check your path and try again!"
                         )
                     console = PDFConsole(
@@ -341,8 +364,8 @@ def main():
                             "[!] Error: Exception not handled using the script mode"
                         )
                         scriptFileObject.close()
-                        with open(errorsFile, "a", encoding="utf-8") as errorLog:
-                            traceback.print_exc(file=errorLog)
+                        logger.error(errorMessage)
+                        logger.error(str(exc))
                         raise Exception(
                             "PeepException", "Open an Issue on GitHub"
                         ) from exc
@@ -355,8 +378,8 @@ def main():
                         errorMessage = (
                             "[!] Error: Exception not handled using the script commands"
                         )
-                        with open(errorsFile, "a", encoding="utf-8") as errorLog:
-                            traceback.print_exc(file=errorLog)
+                        logger.error(errorMessage)
+                        logger.error(str(exc))
                         raise Exception(
                             "PeepException", "Open an Issue on GitHub"
                         ) from exc
@@ -597,16 +620,14 @@ def main():
                             try:
                                 console.cmdloop()
                             except KeyboardInterrupt:
-                                sys.exit()
-                            except:
+                                sys.stdout.write("\n")
+                            except Exception as exc:
                                 errorMessage = "[!] Error: Exception not handled using the interactive console - please report it to the author."
                                 print(
                                     f"{errorColor}{errorMessage}{resetColor}{newLine}"
                                 )
-                                with open(
-                                    errorsFile, "a", encoding="utf-8"
-                                ) as errorLog:
-                                    traceback.print_exc(file=errorLog)
+                                logger.error(errorMessage)
+                                logger.error(str(exc))
     except Exception as e:
         if len(e.args) == 2:
             excName, _ = e.args
@@ -614,14 +635,12 @@ def main():
             excName = _ = None
         if excName is None or excName != "PeepException":
             errorMessage = "[!] Error: Exception not handled"
-            with open(errorsFile, "a", encoding="utf-8") as errorLog:
-                traceback.print_exc(file=errorLog)
-        print(f"{errorColor}{errorMessage}{resetColor}{newLine}")
+            logger.error(errorMessage)
+            logger.error(str(e))
+        logger.error(errorMessage)
     finally:
         if os.path.exists(errorsFile):
-            message = (
-                f"{newLine}Please don't forget to report the errors found:{newLine * 2}"
-            )
+            message = f"{newLine}Please don't forget to report the errors found in file {errorsFile}:{newLine * 2}"
             message += (
                 f"\t- Create an issue on the project webpage "
                 f"(https://github.com/digitalsleuth/peepdf-3){newLine}"

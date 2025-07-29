@@ -90,6 +90,7 @@ Module to manage encoding/decoding in PDF files
 
 import zlib
 import struct
+import base64
 from binascii import hexlify
 from io import BytesIO
 
@@ -115,7 +116,7 @@ def decodeStream(stream, thisFilter, parameters=None):
     @param stream: Stream to be decoded (string)
     @param thisFilter: Filter to apply to decode the stream
     @param parameters: List of PDFObjects containing the parameters for the filter
-    @return: A tuple (status,statusContent), where statusContent is the decoded stream in case status = 0 or an error in case status = -1
+    @return: A tuple (status, statusContent), where statusContent is the decoded stream in case status = 0 or an error in case status = -1
     """
     if parameters is None:
         parameters = {}
@@ -180,7 +181,7 @@ def encodeStream(stream, thisFilter, parameters=None):
     return ret
 
 
-def ascii85Decode(stream):
+def ascii85Decode(stream: str):
     """
     Method to decode streams using ASCII85
 
@@ -188,7 +189,7 @@ def ascii85Decode(stream):
     @return: A tuple (status,statusContent), where statusContent is the decoded PDF stream in case status = 0 or an error in case status = -1
     """
     n = b = 0
-    decodedStream = ""
+    decodedStream = bytearray()
     try:
         for c in stream:
             if "!" <= c <= "u":
@@ -198,29 +199,36 @@ def ascii85Decode(stream):
                     decodedStream += struct.pack(">L", b)
                     n = b = 0
             elif c == "z":
-                assert n == 0
-                decodedStream += "\0\0\0\0"
+                if n != 0:
+                    return (-1, "'z' inside a group is invalid.")
+                decodedStream += b"\0\0\0\0"
             elif c == "~":
                 if n:
                     for _ in range(5 - n):
                         b = b * 85 + 84
                     decodedStream += struct.pack(">L", b)[: n - 1]
                 break
-    except:
-        return (-1, "Unspecified error")
-    return (0, decodedStream)
+    except Exception as exc:
+        return (-1, f"ASCII85 Decoding Error: {exc}")
+    return (0, decodedStream.decode("latin-1"))
 
 
-def ascii85Encode(stream):
+def ascii85Encode(stream: str):
     """
     Method to encode streams using ASCII85 (NOT SUPPORTED YET)
 
     @param stream: A PDF stream
     @return: A tuple (status,statusContent), where statusContent is the encoded PDF stream in case status = 0 or an error in case status = -1
-    TODO: use base64 a85 encode and decode
     """
-
-    return (-1, "Ascii85Encode not supported yet")
+    if not isinstance(stream, str):
+        return (-1, "Input must be a string")
+    try:
+        byte_data = stream.encode("latin-1")
+        encoded = base64.a85encode(byte_data, adobe=True).decode("ascii")
+    except Exception as exc:
+        return (-1, f"Encoding error: {exc}")
+    return (0, encoded)
+    # return (-1, "Ascii85Encode not supported yet")
 
 
 def asciiHexDecode(stream):
@@ -273,23 +281,42 @@ def asciiHexEncode(stream):
     return (0, encodedStream)
 
 
+def doubleDecode(stream):
+    i = 0
+    decodedStream = stream.encode()
+    while i < 2:
+        decodedStream = decodedStream.hex()
+        utf8_bytes = bytes.fromhex(decodedStream)
+        decode_from_utf8 = utf8_bytes.decode("utf-8")
+        decodedStream = decode_from_utf8.encode("latin-1")
+        i += 1
+    return decodedStream
+
+
 def flateDecode(stream, parameters):
     """
     Method to decode streams using the Flate algorithm
 
     @param stream: A PDF stream
-    @return: A tuple (status,statusContent), where statusContent is the decoded PDF stream in case status = 0 or an error in case status = -1
+    @return: A tuple (status, statusContent), where statusContent is the decoded PDF stream in case status = 0 or an error in case status = -1
     """
     decodedStream = ""
     try:
-        if not isinstance(stream, bytes):
-            decodedStream = (zlib.decompress(stream.encode("latin-1"))).decode(
-                "latin-1"
-            )
-        else:
-            decodedStream = zlib.decompress(stream).decode("latin-1")
+        doubleDecodedStream = doubleDecode(stream)
+        # ddHeader = doubleDecodedStream[:4]
+        decodedStream = zlib.decompress(doubleDecodedStream).decode("latin-1")
     except:
-        return (-1, "Error decompressing string")
+        pass
+    if decodedStream == "":
+        try:
+            if not isinstance(stream, bytes):
+                decodedStream = (zlib.decompress(stream.encode("latin-1"))).decode(
+                    "latin-1"
+                )
+            else:
+                decodedStream = zlib.decompress(stream).decode("latin-1")
+        except:
+            return (-1, "Error decompressing string")
 
     if not parameters:
         return (0, decodedStream)
@@ -326,7 +353,7 @@ def flateEncode(stream, parameters):
     Method to encode streams using the Flate algorithm
 
     @param stream: A PDF stream
-    @return: A tuple (status,statusContent), where statusContent is the encoded PDF stream in case status = 0 or an error in case status = -1
+    @return: A tuple (status, statusContent), where statusContent is the encoded PDF stream in case status = 0 or an error in case status = -1
     """
     if not parameters:
         try:
@@ -466,6 +493,14 @@ def lzwEncode(stream, parameters):
             return (-1, "Error decompressing string")
 
 
+def str_to_bytes(s):
+    return [ord(c) for c in s]
+
+
+def bytes_to_str(b):
+    return "".join(chr(x) for x in b)
+
+
 def pre_prediction(stream, predictor, columns, colors, bits):
     """
     Predictor function to make the stream more predictable and improve compression (PDF Specification)
@@ -475,32 +510,83 @@ def pre_prediction(stream, predictor, columns, colors, bits):
     @param columns: Number of samples per row
     @param colors: Number of colors per sample
     @param bits: Number of bits per color
-    @return: A tuple (status,statusContent), where statusContent is the modified stream in case status = 0 or an error in case status = -1
+    @return: A tuple (status, statusContent), where statusContent is the modified stream in case status = 0 or an error in case status = -1
     """
 
-    output = ""
-    # TODO: TIFF and more PNG predictions
+    bytesPerComponent = (bits + 7) // 8
+    bytesPerPixel = colors * bytesPerComponent
+    rowLength = (columns * colors * bits + 7) // 8
 
+    data = str_to_bytes(stream)
+    output = []
+    if predictor == 2:
+        try:
+            for row_start in range(0, len(data), rowLength):
+                row = data[row_start : row_start + rowLength]
+                prev = [0] * len(row)
+                for i in range(len(row)):
+                    row[i] = (row[i] - prev[i % bytesPerPixel]) % 256
+                    prev[i % bytesPerPixel] = (prev[i % bytesPerPixel] + row[i]) % 256
+                output.extend(row)
+            return (0, bytes_to_str(output))
+        except Exception as e:
+            return (-1, f"TIFF pre-prediction error: {e}")
     # PNG prediction
     if 10 <= predictor <= 15:
-        # PNG prediction can vary from row to row
-        for row in range(len(stream) / columns):
-            rowdata = [ord(x) for x in stream[(row * columns) : ((row + 1) * columns)]]
-            filterByte = predictor - 10
-            rowdata = [filterByte] + rowdata
-            if filterByte == 0:
-                pass
-            elif filterByte == 1:
-                for i in range(len(rowdata) - 1, 1, -1):
-                    if rowdata[i] < rowdata[i - 1]:
-                        rowdata[i] = rowdata[i] + 256 - rowdata[i - 1]
-                    else:
-                        rowdata[i] = rowdata[i] - rowdata[i - 1]
-            else:
-                return (-1, "Unsupported predictor")
-            output += "".join([chr(x) for x in rowdata])
-        return (0, output)
-    return (-1, "Unsupported predictor")
+        filter_type = predictor - 10
+        try:
+            prev_row = [0] * rowLength
+            for row_start in range(0, len(data), rowLength):
+                row = data[row_start : row_start + rowLength]
+                filter_row = [filter_type]
+
+                if filter_type == 0:  # None
+                    filter_row += row
+                elif filter_type == 1:  # Sub
+                    for i in range(len(row)):
+                        left = row[i - bytesPerPixel] if i >= bytesPerPixel else 0
+                        filter_row.append((row[i] - left) % 256)
+                elif filter_type == 2:  # Up
+                    for i in range(len(row)):
+                        up = prev_row[i]
+                        filter_row.append((row[i] - up) % 256)
+                elif filter_type == 3:  # Average
+                    for i in range(len(row)):
+                        left = row[i - bytesPerPixel] if i >= bytesPerPixel else 0
+                        up = prev_row[i]
+                        avg = (left + up) // 2
+                        filter_row.append((row[i] - avg) % 256)
+                elif filter_type == 4:  # Paeth
+
+                    def paeth(a, b, c):
+                        p = a + b - c
+                        pa = abs(p - a)
+                        pb = abs(p - b)
+                        pc = abs(p - c)
+                        if pa <= pb and pa <= pc:
+                            return a
+                        if pb <= pc:
+                            return b
+                        return c
+
+                    for i in range(len(row)):
+                        left = row[i - bytesPerPixel] if i >= bytesPerPixel else 0
+                        up = prev_row[i]
+                        up_left = (
+                            prev_row[i - bytesPerPixel] if i >= bytesPerPixel else 0
+                        )
+                        filter_row.append((row[i] - paeth(left, up, up_left)) % 256)
+                elif filter_type == 5:
+                    pass
+                else:
+                    return (-1, f"Unsupported PNG predictor: {filter_type}")
+                output.extend(filter_row)
+                prev_row = row
+            output_str = bytes_to_str(output)
+            return (0, output_str)
+        except Exception as e:
+            return (-1, f"PNG pre-prediction error: {e}")
+    return (-1, f"Unsupported predictor value: {predictor}")
 
 
 def post_prediction(decodedStream, predictor, columns, colors, bits):
@@ -512,109 +598,103 @@ def post_prediction(decodedStream, predictor, columns, colors, bits):
     @param columns: Number of samples per row
     @param colors: Number of colors per sample
     @param bits: Number of bits per color
-    @return: A tuple (status,statusContent), where statusContent is the modified decoded stream in case status = 0 or an error in case status = -1
+    @return: A tuple (status, statusContent), where statusContent is the modified decoded stream in case status = 0 or an error in case status = -1
     """
 
     output = ""
-    bytesPerRow = int((colors * bits * columns + 7) / 8)
+    bytesPerRow = (colors * bits * columns + 7) // 8
 
     # TIFF - 2
     # http://www.gnupdf.org/PNG_and_TIFF_Predictors_Filter#TIFF
     if predictor == 2:
-        numRows = len(decodedStream) / bytesPerRow
-        bitmask = 2**bits - 1
-        outputBitsStream = ""
-        for rowIndex in range(numRows):
-            row = decodedStream[
-                rowIndex * bytesPerRow : rowIndex * bytesPerRow + bytesPerRow
-            ]
-            ret, colorNums = getNumsFromBytes(row, bits)
-            if ret == -1:
-                return (ret, colorNums)
-            pixel = [0 for x in range(colors)]
-            for i in range(columns):
-                for j in range(colors):
-                    diffPixel = colorNums[i + j]
-                    pixel[j] = (pixel[j] + diffPixel) & bitmask
-                    ret, outputBits = getBitsFromNum(pixel[j], bits)
-                    if ret == -1:
-                        return (ret, outputBits)
-                    outputBitsStream += outputBits
-        output = getBytesFromBits(outputBitsStream)
-        return output
+        try:
+            numRows = len(decodedStream) // bytesPerRow
+            bitmask = (1 << bits) - 1
+            outputBitsStream = ""
+            for rowIndex in range(numRows):
+                row = decodedStream[
+                    rowIndex * bytesPerRow : (rowIndex + 1) * bytesPerRow
+                ]
+                ret, colorNums = getNumsFromBytes(row, bits)
+                if ret == -1:
+                    return (ret, colorNums)
+                pixel = [0] * colors
+                for i in range(columns):
+                    for j in range(colors):
+                        idx = i * colors + j
+                        if idx >= len(colorNums):
+                            return (
+                                -1,
+                                f"Color data index out of range at row {rowIndex}, col {i}, color {j}",
+                            )
+                        diffPixel = colorNums[idx]
+                        pixel[j] = (pixel[j] + diffPixel) & bitmask
+                        ret, outputBits = getBitsFromNum(pixel[j], bits)
+                        if ret == -1:
+                            return (ret, outputBits)
+                        outputBitsStream += outputBits
+            ret, output = getBytesFromBits(outputBitsStream)
+            return (ret, output) if ret == 0 else (-1, output)
+        except Exception as e:
+            return (-1, f"TIFF decoding error: {str(e)}")
     # PNG prediction
     # http://www.libpng.org/pub/png/spec/1.2/PNG-Filters.html
     # http://www.gnupdf.org/PNG_and_TIFF_Predictors_Filter#TIFF
     if 10 <= predictor <= 15:
-        bytesPerRow += 1
-        numRows = int((len(decodedStream) + bytesPerRow - 1) / bytesPerRow)
-        numSamplesPerRow = columns + 1
-        bytesPerSample = int((colors * bits + 7) / 8)
-        upRowdata = (0,) * numSamplesPerRow
-        for row in range(numRows):
-            rowdata = [
-                ord(x)
-                for x in decodedStream[
-                    (row * int(bytesPerRow)) : ((row + 1) * int(bytesPerRow))
-                ]
-            ]
-            # PNG prediction can vary from row to row
-            filterByte = rowdata[0]
-            rowdata[0] = 0
-            if filterByte == 0:
-                # None
-                pass
-            elif filterByte == 1:
-                # Sub - 11
-                for i in range(1, numSamplesPerRow):
-                    if i < bytesPerSample:
-                        prevSample = 0
+        try:
+            bytesPerPixel = (colors * bits + 7) // 8
+            rowLength = (colors * bits * columns + 7) // 8
+            output_bytes = []
+            i = 0
+            upRowdata = [0] * rowLength
+            data = str_to_bytes(decodedStream)
+            while i < len(data):
+                filter_type = data[i]
+                i += 1
+                rowdata = data[i : i + rowLength]
+                i += rowLength
+                if len(rowdata) != rowLength:
+                    return (-1, f"Incomplete PNG row at offset {i}")
+                for j in range(len(rowdata)):
+                    left = rowdata[j - bytesPerPixel] if j >= bytesPerPixel else 0
+                    up = upRowdata[j]
+                    up_left = upRowdata[j - bytesPerPixel] if j >= bytesPerPixel else 0
+
+                    if filter_type == 0:  # None
+                        pass
+                    elif filter_type == 1:  # Sub
+                        rowdata[j] = (rowdata[j] + left) % 256
+                    elif filter_type == 2:  # Up
+                        rowdata[j] = (rowdata[j] + up) % 256
+                    elif filter_type == 3:  # Average
+                        avg = (left + up) // 2
+                        rowdata[j] = (rowdata[j] + avg) % 256
+                    elif filter_type == 4:  # Paeth
+
+                        def paeth(a, b, c):
+                            p = a + b - c
+                            pa = abs(p - a)
+                            pb = abs(p - b)
+                            pc = abs(p - c)
+                            if pa <= pb and pa <= pc:
+                                return a
+                            if pb <= pc:
+                                return b
+                            return c
+
+                        pr = paeth(left, up, up_left)
+                        rowdata[j] = (rowdata[j] + pr) % 256
+                    elif filter_type == 15:
+                        pass
                     else:
-                        prevSample = rowdata[i - bytesPerSample]
-                    rowdata[i] = int((rowdata[i] + prevSample) % 256)
-            elif filterByte == 2:
-                # Up - 12
-                for i in range(1, numSamplesPerRow):
-                    upSample = upRowdata[i]
-                    rowdata[i] = int((rowdata[i] + upSample) % 256)
-            elif filterByte == 3:
-                # Average - 13
-                for i in range(1, numSamplesPerRow):
-                    upSample = upRowdata[i]
-                    if i < bytesPerSample:
-                        prevSample = 0
-                    else:
-                        prevSample = rowdata[i - bytesPerSample]
-                    rowdata[i] = int((rowdata[i] + ((prevSample + upSample) / 2)) % 256)
-            elif filterByte == 4:
-                # Paeth - 14
-                for i in range(1, numSamplesPerRow):
-                    upSample = upRowdata[i]
-                    if i < bytesPerSample:
-                        prevSample = 0
-                        upPrevSample = 0
-                    else:
-                        prevSample = rowdata[i - bytesPerSample]
-                        upPrevSample = upRowdata[i - bytesPerSample]
-                    p = prevSample + upSample - upPrevSample
-                    pa = abs(p - prevSample)
-                    pb = abs(p - upSample)
-                    pc = abs(p - upPrevSample)
-                    if pa <= pb and pa <= pc:
-                        nearest = prevSample
-                    elif pb <= pc:
-                        nearest = upSample
-                    else:
-                        nearest = upPrevSample
-                    rowdata[i] = int((rowdata[i] + nearest) % 256)
-            else:
-                # Optimum - 15
-                # return (-1,'Unsupported predictor')
-                pass
-            upRowdata = rowdata
-            output += "".join([chr(x) for x in rowdata[1:]])
-        return (0, output)
-    return (-1, "Wrong value for predictor")
+                        return (-1, f"Unsupported PNG filter type: {filter_type}")
+                output_bytes.extend(rowdata)
+                upRowdata = rowdata
+            output = bytes_to_str(output_bytes)
+            return (0, output)
+        except Exception as e:
+            return (-1, f"PNG Decoding Error: {str(e)}")
+    return (-1, f"Unsupported predictor value: {predictor}")
 
 
 def runLengthDecode(stream):
@@ -624,22 +704,26 @@ def runLengthDecode(stream):
     @param stream: A PDF stream
     @return: A tuple (status,statusContent), where statusContent is the decoded PDF stream in case status = 0 or an error in case status = -1
     """
-    decodedStream = ""
-    index = 0
     try:
-        while index < len(stream):
-            length = ord(stream[index])
-            if 0 <= length < 128:
-                decodedStream += stream[index + 1 : index + length + 2]
-                index += length + 2
-            elif 128 < length < 256:
-                decodedStream += stream[index + 1] * (257 - length)
-                index += 2
-            else:
+        stream_bytes = stream.encode("latin-1")
+        decoded = bytearray()
+        index = 0
+        while index < len(stream_bytes):
+            length = stream_bytes[index]
+            index += 1
+            if length == 128:
                 break
-    except:
-        return (-1, "Error decoding string")
-    return (0, decodedStream)
+            if 0 <= length <= 127:
+                decoded += stream_bytes[index : index + length + 1]
+                index += length + 1
+            elif 129 <= length <= 255:
+                decoded += stream_bytes[index : index + 1] * (257 - length)
+                index += 1
+            else:
+                return (-1, f"Invalid run-length byte: {length}")
+        return (0, decoded.decode("latin-1"))
+    except Exception as exc:
+        return (-1, f"Error decoding RunLength: {exc}")
 
 
 def runLengthEncode(stream):
@@ -649,7 +733,40 @@ def runLengthEncode(stream):
     @param stream: A PDF stream
     @return: A tuple (status,statusContent), where statusContent is the encoded PDF stream in case status = 0 or an error in case status = -1
     """
-    return (-1, "RunLengthEncode not supported yet")
+    try:
+        stream_bytes = stream.encode("latin-1")
+        encoded = bytearray()
+        i = 0
+        length = len(stream_bytes)
+
+        while i < length:
+            run_start = i
+            run_length = 1
+            while (
+                i + run_length < length
+                and run_length < 128
+                and stream_bytes[i] == stream_bytes[i + run_length]
+            ):
+                run_length += 1
+            if run_length > 1:
+                encoded.append(257 - run_length)
+                encoded.append(stream_bytes[i])
+                i += run_length
+            else:
+                literal_start = i
+                literal_run = 1
+                i += 1
+                while i < length and literal_run < 128:
+                    if i + 1 < length and stream_bytes[i] == stream_bytes[i + 1]:
+                        break
+                    literal_run += 1
+                    i += 1
+                encoded.append(literal_run - 1)
+                encoded += stream_bytes[literal_start : literal_start + literal_run]
+        encoded.append(128)
+        return (0, encoded.decode("latin-1"))
+    except Exception as exc:
+        return (-1, f"Error encoding RunLength: {exc}")
 
 
 def ccittFaxDecode(stream, parameters):

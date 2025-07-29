@@ -31,9 +31,9 @@ from datetime import datetime as dt
 import jsbeautifier
 
 try:
-    from peepdf.PDFUtils import unescapeHTMLEntities, escapeString, DTFMT
+    from peepdf.PDFUtils import unescapeHTMLEntities, escapeString, DTFMT, ppdfLog
 except ModuleNotFoundError:
-    from PDFUtils import unescapeHTMLEntities, escapeString, DTFMT
+    from PDFUtils import unescapeHTMLEntities, escapeString, DTFMT, ppdfLog
 
 try:
     import STPyV8
@@ -53,15 +53,13 @@ except ModuleNotFoundError:
     JS_MODULE = False
     STPyV8 = None
 
-ERROR_LOG = f"peepdf_jserrors-{dt.now().strftime(DTFMT)}.txt"
-currentDir = os.getcwd()
-errorsFile = os.path.join(currentDir, ERROR_LOG)
+now = dt.now().strftime(DTFMT)
 newLine = os.linesep
 reJSscript = r"<script[^>]*?contentType\s*?=\s*?['\"]application/x-javascript['\"][^>]*?>(.*?)</script>"
 preDefinedCode = "var app = this;"
 
 
-def analyseJS(code: str, context=None, manualAnalysis: bool = False):
+def analyseJS(code: str, context=None, manualAnalysis: bool = False, src: str = None):
     """
     Hooks the eval function and search for obfuscated elements in the Javascript code
 
@@ -78,7 +76,17 @@ def analyseJS(code: str, context=None, manualAnalysis: bool = False):
     jsCode = []
     unescapedBytes = []
     urlsFound = []
-
+    if src:
+        errorsFile = f"{os.path.abspath(src)}-peepdf-jserrors-{now}.txt"
+    else:
+        errorsFile = os.path.join(os.getcwd(), f"peepdf-jserrors-NOFILE-{now}.txt")
+    logger = ppdfLog(
+        log_to_file=True,
+        silent=True,
+        file=errorsFile,
+        enc="latin-1",
+        logger_name="peepdf-js",
+    )
     try:
         code = unescapeHTMLEntities(code)
         scriptElements = re.findall(reJSscript, code, re.DOTALL | re.IGNORECASE)
@@ -106,10 +114,9 @@ def analyseJS(code: str, context=None, manualAnalysis: bool = False):
                         jsCode.append(code)
                     else:
                         break
-                except:
-                    error = str(sys.exc_info()[1])
-                    with open(errorsFile, "a", encoding="latin-1") as log_file:
-                        log_file.write(f"{error}{newLine}")
+                except Exception as exc:
+                    error = str(exc)
+                    logger.error(error)
                     errors.append(error)
                     break
 
@@ -143,10 +150,13 @@ def analyseJS(code: str, context=None, manualAnalysis: bool = False):
                                 for url in urls:
                                     if url not in urlsFound:
                                         urlsFound.append(url)
-    except:
-        with open(errorsFile, "a", encoding="latin-1") as log_file:
-            traceback.print_exc(file=log_file)
-        errors.append("Unexpected error in the JSAnalysis module!")
+    except AttributeError:
+        pass
+    except Exception as exc:
+        error = "Unexpected error in the JSAnalysis module!"
+        logger.error(error)
+        logger.error(str(exc))
+        errors.append(error)
     finally:
         for js in jsCode:
             if js is None or js == "":

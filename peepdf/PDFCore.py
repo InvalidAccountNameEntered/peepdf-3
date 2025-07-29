@@ -97,7 +97,7 @@ MAL_EOBJ = 3
 MAL_ESTREAM = 4
 MAL_XREF = 5
 MAL_BAD_HEAD = 6
-VERSION = "5.1.1"
+VERSION = "5.2.0"
 IS_ID_1 = False
 IS_ID_2 = False
 pdfFile = None
@@ -630,11 +630,13 @@ class PDFString(PDFObject):
         self.urlsFound = []
         self.rawValue = unescapeString(self.rawValue)
         self.value = self.rawValue
-        octalNumbers = re.findall("\\\\([0-7]{1,3})", self.value, re.DOTALL)
         try:
-            for octal in octalNumbers:
-                # TODO: check!! \\\\?
-                self.value = self.value.replace(f"\\{octal}", chr(int(octal, 8)))
+            self.value = re.sub(
+                r"\\([0-7]{1,3})",
+                lambda m: chr(int(m.group(1), 8)),
+                self.value,
+                flags=re.DOTALL,
+            )
         except:
             errorMessage = "[!] Error in octal conversion"
             self.addError(errorMessage)
@@ -647,7 +649,9 @@ class PDFString(PDFObject):
                 self.urlsFound,
                 jsErrors,
                 jsContexts["global"],
-            ) = analyseJS(self.value, jsContexts["global"], isManualAnalysis)
+            ) = analyseJS(
+                self.value, jsContexts["global"], isManualAnalysis, src=pdfFile.fileName
+            )
             if jsErrors:
                 for jsError in jsErrors:
                     errorMessage = f"[!] Error analysing Javascript: {jsError}"
@@ -792,15 +796,21 @@ class PDFHexString(PDFObject):
         if not decrypt:
             try:
                 if newHexValue:
-                    # New hexadecimal value
-                    self.value = ""
-                    tmpValue = self.rawValue
-                    if len(tmpValue) % 2 != 0:
-                        tmpValue += "0"
-                    self.value = bytes.fromhex(tmpValue).decode("latin-1")
+                    if self.rawValue.startswith("feff"):
+                        self.value = self.getBomDecodedValue(self.rawValue)
+                    else:
+                        # New hexadecimal value
+                        self.value = ""
+                        tmpValue = self.rawValue
+                        if len(tmpValue) % 2 != 0:
+                            tmpValue += "0"
+                        self.value = bytes.fromhex(tmpValue).decode("latin-1")
                 else:
                     # New decoded value
-                    self.rawValue = (self.value).encode("latin-1").hex()
+                    if self.rawValue.startswith("feff"):
+                        self.value = self.getBomDecodedValue(self.rawValue)
+                    else:
+                        self.rawValue = (self.value).encode("latin-1").hex()
                 self.encryptedValue = self.value
                 if self.IS_ID:
                     self.value = f"<{self.rawValue}>"
@@ -818,7 +828,9 @@ class PDFHexString(PDFObject):
                 self.urlsFound,
                 jsErrors,
                 jsContexts["global"],
-            ) = analyseJS(self.value, jsContexts["global"], isManualAnalysis)
+            ) = analyseJS(
+                self.value, jsContexts["global"], isManualAnalysis, src=pdfFile.fileName
+            )
             if jsErrors:
                 for jsError in jsErrors:
                     errorMessage = f"[!] Error analysing Javascript: {jsError}"
@@ -904,6 +916,16 @@ class PDFHexString(PDFObject):
         @return: An array of URLs
         """
         return self.urlsFound
+
+    def getBomDecodedValue(self, value):
+        """
+        Gets the UTF-16 BOM decoded value of the object
+
+        @return: the BOM decoded string
+        """
+        byte_value = bytes.fromhex(value)
+        decoded_value = byte_value.decode("utf-16")
+        return decoded_value
 
 
 class PDFReference(PDFObject):
@@ -1307,6 +1329,8 @@ class PDFDictionary(PDFObject):
         self.rawValue = "<< "
         self.encryptedValue = "<< "
         keys = list(self.elements.keys())
+        if "/Checksum" in keys:
+            test = 1
         values = list(self.elements.values())
         for i, keyValue in enumerate(keys):
             if values[i] is None:
@@ -1318,7 +1342,10 @@ class PDFDictionary(PDFObject):
                     return (-1, errorMessage)
             else:
                 valueObject = values[i]
-            v = valueObject.getValue()
+            if keyValue == "/Checksum":
+                v = valueObject.getRawValue()
+            else:
+                v = valueObject.getValue()
             objType = valueObject.getType()
             if keyValue == "/Type":
                 self.dictType = v
@@ -1928,7 +1955,10 @@ class PDFStream(PDFDictionary):
                             jsErrors,
                             jsContexts["global"],
                         ) = analyseJS(
-                            self.decodedStream, jsContexts["global"], isManualAnalysis
+                            self.decodedStream,
+                            jsContexts["global"],
+                            isManualAnalysis,
+                            src=pdfFile.fileName,
                         )
                         if jsErrors:
                             for jsError in jsErrors:
@@ -2063,6 +2093,7 @@ class PDFStream(PDFDictionary):
                                     self.decodedStream,
                                     jsContexts["global"],
                                     isManualAnalysis,
+                                    src=pdfFile.fileName,
                                 )
                                 if jsErrors:
                                     for jsError in jsErrors:
@@ -2159,6 +2190,7 @@ class PDFStream(PDFDictionary):
                                 self.decodedStream,
                                 jsContexts["global"],
                                 isManualAnalysis,
+                                src=pdfFile.fileName,
                             )
                             if jsErrors:
                                 for jsError in jsErrors:
@@ -2796,7 +2828,12 @@ class PDFStream(PDFDictionary):
                 self.urlsFound,
                 jsErrors,
                 jsContexts["global"],
-            ) = analyseJS(self.decodedStream, jsContexts["global"], isManualAnalysis)
+            ) = analyseJS(
+                self.decodedStream,
+                jsContexts["global"],
+                isManualAnalysis,
+                src=pdfFile.fileName,
+            )
             if jsErrors:
                 for jsError in jsErrors:
                     errorMessage = f"[!] Error analysing Javascript: {jsError}"
@@ -3397,6 +3434,7 @@ class PDFObjectStream(PDFStream):
                                 self.decodedStream,
                                 jsContexts["global"],
                                 isManualAnalysis,
+                                src=pdfFile.fileName,
                             )
                             if jsErrors:
                                 for jsError in jsErrors:
@@ -3625,7 +3663,7 @@ class PDFIndirectObject:
         rawValue = self.obj.toFile()
         output = (
             f"{str(self.thisId)} {str(self.generationNumber)} obj{newLine}{rawValue}"
-            "{newLine}endobj{newLine * 2}"
+            f"{newLine}endobj{newLine * 2}"
         )
         self.size = len(output)
         return output
@@ -6093,6 +6131,11 @@ class PDFFile:
         self.setEncrypted(True)
         return (0, "")
 
+    def getBomDecodedValue(self, value):
+        byte_value = bytes.fromhex(value)
+        decoded_value = byte_value.decode("utf-16")
+        return decoded_value
+
     def getBasicMetadata(self, version):
         basicMetadata = {}
 
@@ -6101,13 +6144,24 @@ class PDFFile:
         if infoObject is not None:
             author = infoObject.getElementByName("/Author")
             if author is not None and author != []:
-                basicMetadata["author"] = author.getValue()
+                if author.rawValue.startswith("feff"):
+                    basicMetadata["author"] = self.getBomDecodedValue(author.rawValue)
+                else:
+                    basicMetadata["author"] = author.getValue()
             creator = infoObject.getElementByName("/Creator")
             if creator is not None and creator != []:
-                basicMetadata["creator"] = creator.getValue()
+                if creator.rawValue.startswith("feff"):
+                    basicMetadata["creator"] = self.getBomDecodedValue(creator.rawValue)
+                else:
+                    basicMetadata["creator"] = creator.getValue()
             producer = infoObject.getElementByName("/Producer")
             if producer is not None and producer != []:
-                basicMetadata["producer"] = producer.getValue()
+                if producer.rawValue.startswith("feff"):
+                    basicMetadata["producer"] = self.getBomDecodedValue(
+                        producer.rawValue
+                    )
+                else:
+                    basicMetadata["producer"] = producer.getValue()
             creationDate = infoObject.getElementByName("/CreationDate")
             if creationDate is not None and creationDate != []:
                 basicMetadata["creation"] = creationDate.getValue()
@@ -6116,10 +6170,16 @@ class PDFFile:
                 basicMetadata["modification"] = modificationDate.getValue()
             subject = infoObject.getElementByName("/Subject")
             if subject is not None and subject != []:
-                basicMetadata["subject"] = subject.getValue()
+                if subject.rawValue.startswith("feff"):
+                    basicMetadata["subject"] = self.getBomDecodedValue(subject.rawValue)
+                else:
+                    basicMetadata["subject"] = subject.getValue()
             title = infoObject.getElementByName("/Title")
             if title is not None and title != []:
-                basicMetadata["title"] = title.getValue()
+                if title.rawValue.startswith("feff"):
+                    basicMetadata["title"] = self.getBomDecodedValue(title.rawValue)
+                else:
+                    basicMetadata["title"] = title.getValue()
         if "author" not in basicMetadata:
             ids = self.getObjectsByString("<dc:creator>", version)
             if ids is not None and ids != []:
@@ -7036,9 +7096,7 @@ class PDFFile:
                 if error[:lenErrorType] == errorType:
                     self.errors.remove(error)
 
-    def save(
-        self, filename, version=None, malformedOptions=None, headerFile=None
-    ):
+    def save(self, filename, version=None, malformedOptions=None, headerFile=None):
         if malformedOptions is None:
             malformedOptions = []
         maxId = 0
@@ -7672,7 +7730,7 @@ class PDFParser:
                             fileId = f"[{fileIdElements[0].getRawValue()}]"
                             fileIdElements[0].setValue(fileIdElements[0].getRawValue())
                             pdfFile.setFileId(fileId)
-                        if fileIdElements[1] is not None:
+                        if len(fileIdElements) > 1 and fileIdElements[1] is not None:
                             fileId += f"[{fileIdElements[1].getRawValue()}]"
                             fileIdElements[1].setValue(fileIdElements[1].getRawValue())
                             pdfFile.setFileId(fileId)

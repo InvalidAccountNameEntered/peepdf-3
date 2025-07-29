@@ -28,6 +28,7 @@ import sys
 import re
 import html.entities
 import json
+import logging
 from pathlib import Path
 from datetime import datetime as dt
 import requests
@@ -40,6 +41,30 @@ except ModuleNotFoundError:
     from PDFVulns import vulnsDict, vulnsVersion
 
 DTFMT = "%Y%m%d-%H%M%S"
+
+
+def ppdfLog(log_to_file=False, silent=False, file=None, enc="utf-8", logger_name=None):
+    logger = logging.getLogger(logger_name)
+    if logger.hasHandlers():
+        logger.handlers.clear()
+    if not silent:
+        stdout_fmt = logging.Formatter(
+            "%(asctime)s | %(levelname)-8s | %(message)s", datefmt=DTFMT
+        )
+        stdout = logging.StreamHandler(stream=sys.stdout)
+        stdout.setLevel(logging.WARNING)
+        stdout.setFormatter(stdout_fmt)
+        logger.addHandler(stdout)
+    if log_to_file:
+        log_fmt = logging.Formatter(
+            "%(asctime)s | %(levelname)-8s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+        )
+        log_file = logging.FileHandler(file, encoding=enc)
+        log_file.setLevel(logging.WARNING)
+        log_file.setFormatter(log_fmt)
+        logger.addHandler(log_file)
+
+    return logger
 
 
 def clearScreen():
@@ -216,19 +241,12 @@ def getBitsFromNum(num: int, bitsPerComponent: int = 8):
 
     @param num: Number to be converted
     @param bitsPerComponent: Number of bits needed to represent a component
-    @return: A tuple (status,statusContent), where statusContent is the string containing the resulting bits in case status = 0 or an error in case status = -1
+    @return: A tuple (status, statusContent), where statusContent is the string containing the resulting bits in case status = 0 or an error in case status = -1
     """
-    if not isinstance(num, int):
-        return (-1, "num must be an integer")
-    if not isinstance(bitsPerComponent, int):
-        return (-1, "bitsPerComponent must be an integer")
+    if not isinstance(num, int) or not isinstance(bitsPerComponent, int):
+        return (-1, "Both num and bitsPerComponent must be an integers")
     try:
-        bitsRepresentation = bin(num)
-        bitsRepresentation = bitsRepresentation.replace("0b", "")
-        mod = len(bitsRepresentation) % 8
-        if mod != 0:
-            bitsRepresentation = "0" * (8 - mod) + bitsRepresentation
-        bitsRepresentation = bitsRepresentation[-1 * bitsPerComponent :]
+        bitsRepresentation = bin(num)[2:].zfill(bitsPerComponent)[-bitsPerComponent:]
     except:
         return (-1, "Error in conversion from number to bits")
     return (0, bitsRepresentation)
@@ -240,33 +258,25 @@ def getNumsFromBytes(byteStr: str, bitsPerComponent: int = 8):
 
     @param byteStr: String representing the bytes to be converted
     @param bitsPerComponent: Number of bits needed to represent a component
-    @return: A tuple (status,statusContent), where statusContent is a list of numbers in case status = 0 or an error in case status = -1
+    @return: A tuple (status, statusContent), where statusContent is a list of numbers in case status = 0 or an error in case status = -1
     """
     if not isinstance(byteStr, str):
         return (-1, "bytes must be a string")
     if not isinstance(bitsPerComponent, int):
         return (-1, "bitsPerComponent must be an integer")
     outputComponents = []
-    bitsStream = ""
-    for byte in byteStr:
-        try:
-            bitsRepresentation = bin(ord(byte))
-            bitsRepresentation = bitsRepresentation.replace("0b", "")
-            bitsRepresentation = (
-                "0" * (8 - len(bitsRepresentation)) + bitsRepresentation
-            )
-            bitsStream += bitsRepresentation
-        except:
-            return (-1, "Error in conversion from bytes to bits")
-
+    try:
+        bitsStream = "".join(f"{ord(c):08b}" for c in byteStr)
+    except Exception as e:
+        return (-1, f"Failed to convert byte-string to bits: {e}")
     try:
         for i in range(0, len(bitsStream), bitsPerComponent):
-            byteStr = ""
             bits = bitsStream[i : i + bitsPerComponent]
-            num = int(bits, 2)
-            outputComponents.append(num)
+            if len(bits) < bitsPerComponent:
+                break
+            outputComponents.append(int(bits, 2))
     except:
-        return (-1, "Error in conversion from bits to bytes")
+        return (-1, "Error in conversion from bits to numbers")
     return (0, outputComponents)
 
 
@@ -275,21 +285,22 @@ def getBytesFromBits(bitsStream: str):
     Makes the conversion between bits and bytes.
 
     @param bitsStream: String representing a chain of bits
-    @return: A tuple (status,statusContent), where statusContent is the string containing the resulting bytes in case status = 0 or an error in case status = -1
+    @return: A tuple (status, statusContent), where statusContent is the string containing the resulting bytes in case status = 0 or an error in case status = -1
     """
     if not isinstance(bitsStream, str):
         return (-1, "The bitsStream must be a string")
+    if not re.fullmatch(r"[01]*", bitsStream):
+        return (-1, "Bit stream must only contain 0 and 1")
+    if len(bitsStream) < 8:
+        return (-1, "Bit stream must contain at least 8 bits")
     byteStr = ""
-    if re.match("[01]*$", bitsStream):
-        try:
-            for i in range(0, len(bitsStream), 8):
-                bits = bitsStream[i : i + 8]
-                byte = chr(int(bits, 2))
-                byteStr += byte
-        except:
-            return (-1, "Error in conversion from bits to bytes")
-        return (0, byteStr)
-    return (-1, "The format of the bit stream is not correct")
+    try:
+        for i in range(0, len(bitsStream) - 7, 8):
+            bits = bitsStream[i : i + 8]
+            byteStr += chr(int(bits, 2))
+    except:
+        return (-1, "Error in conversion from bits to bytes")
+    return (0, byteStr)
 
 
 def getBytesFromFile(filename: str, offset: int, numBytes: int):
