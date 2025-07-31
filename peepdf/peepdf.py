@@ -338,8 +338,9 @@ def main():
                     errorMessage = (
                         "[!] Error: Exception while generating the JSON report"
                     )
-                    logger.error(errorMessage)
-                    logger.error(str(exc))
+                    excMessage = str(exc)
+                    json_output = json.dumps({'error': errorMessage, 'exception': excMessage})
+                    logger.error(json_output)
                     raise Exception("PeepException", "Open an Issue on GitHub") from exc
             else:
                 if COLORIZED_OUTPUT and not args.avoidColors:

@@ -936,7 +936,16 @@ def jbig2Decode(stream, parameters):
     @param stream: A PDF stream
     @return: A tuple (status,statusContent), where statusContent is the decoded PDF stream in case status = 0 or an error in case status = -1
     """
-    return (-1, "Jbig2Decode not supported yet")
+    jbig2_globals = ""
+    jbig2_page = ""
+    #header = '974A42320D0A1A0A0100000001'
+    # JBIG2Globals reference is next. If /JBIGGlobals 1 0 R, then ref 1 contains JBIG2Globals
+    # Then content from stream with JBIG2Decode
+    #end_of_page = '0000000331000100000000'
+    #end_of_file = '00000004330100000000'
+    #Concat all together to make full JBIG2 file.
+    return (0, stream.encode().hex())
+    #return (-1, "Jbig2Decode not supported yet")
 
 
 def jbig2Encode(stream, parameters):

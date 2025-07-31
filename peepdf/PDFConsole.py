@@ -1700,6 +1700,7 @@ class PDFConsole(cmd.Cmd):
             self.log_output("info " + argv, message)
             return False
         stats = ""
+        statsDict = {}
         args = self.parseArgs(argv)
         if args is None:
             message = "[!] Error: The command line arguments have not been parsed successfully"
@@ -1878,7 +1879,7 @@ class PDFConsole(cmd.Cmd):
                                 stats += f"\t\t{beforeStaticLabel}{vulnName} ("
                                 for vulnCVE in vulnCVEList:
                                     stats += f"{vulnCVE},"
-                                stats += f"{stats[:-1]}): {self.resetColor}{str(elements[element])}{newLine}"
+                                stats = f"{stats[:-1]}): {self.resetColor}{str(elements[element])}{newLine}"
                             else:
                                 stats += (
                                     f"\t\t{beforeStaticLabel}{element} ({len(elements[element])}): "
@@ -1914,7 +1915,6 @@ class PDFConsole(cmd.Cmd):
                 self.log_output("info " + argv, message)
                 return False
         if thisId == "xref":
-            statsDict = {}
             ret = self.pdfFile.getXrefSection(version)
             if ret is None or ret[1] is None or ret[1] == [] or ret[1] == [None, None]:
                 message = "[!] Error: xref section not found"
@@ -1948,7 +1948,6 @@ class PDFConsole(cmd.Cmd):
             if statsDict["Errors"] is not None:
                 stats += f'{beforeStaticLabel}Errors: {self.resetColor}{statsDict["Errors"]}{newLine}'
         elif thisId == "trailer":
-            statsDict = {}
             ret = self.pdfFile.getTrailer(version)
             if ret is None or ret[1] is None or ret[1] == [] or ret[1] == [None, None]:
                 message = "[!] Error: Trailer not found"
