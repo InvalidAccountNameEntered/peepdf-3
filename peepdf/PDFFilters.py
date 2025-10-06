@@ -303,7 +303,6 @@ def flateDecode(stream, parameters):
     decodedStream = ""
     try:
         doubleDecodedStream = doubleDecode(stream)
-        # ddHeader = doubleDecodedStream[:4]
         decodedStream = zlib.decompress(doubleDecodedStream).decode("latin-1")
     except:
         pass
@@ -316,7 +315,7 @@ def flateDecode(stream, parameters):
             else:
                 decodedStream = zlib.decompress(stream).decode("latin-1")
         except:
-            return (-1, "Error decompressing string")
+            return (-1, "Error decompressing string with FlateDecode")
 
     if not parameters:
         return (0, decodedStream)
@@ -406,7 +405,7 @@ def lzwDecode(stream, parameters):
     try:
         decodedStream = lzwdecode(stream)
     except:
-        return (-1, "Error decompressing string")
+        return (-1, "Error decompressing string with LZW Decode")
 
     if not parameters:
         return (0, decodedStream)
@@ -453,7 +452,7 @@ def lzwEncode(stream, parameters):
                 encodedStream += c
             return (0, encodedStream)
         except:
-            return (-1, "Error compressing string")
+            return (-1, "Error compressing string with LZW Encode")
     else:
         if "/Predictor" in parameters:
             predictor = parameters["/Predictor"].getRawValue()
@@ -490,7 +489,7 @@ def lzwEncode(stream, parameters):
                 encodedStream += c
             return (0, encodedStream)
         except:
-            return (-1, "Error decompressing string")
+            return (-1, "Error compressing string with LZW Encode")
 
 
 def str_to_bytes(s):
@@ -783,7 +782,7 @@ def ccittFaxDecode(stream, parameters):
             decodedStream = CCITTFax().decode(stream)
             return (0, decodedStream)
         except:
-            return (-1, "Error decompressing string")
+            return (-1, "Error decompressing string with CCITT Fax Decode")
     else:
         # K = A code identifying the encoding scheme used
         if "/K" in parameters:
@@ -852,7 +851,7 @@ def ccittFaxDecode(stream, parameters):
             )
             return (0, decodedStream)
         except:
-            return (-1, "Error decompressing string")
+            return (-1, "Error decompressing string with CCITT Fax Decode")
 
 
 def ccittFaxEncode(stream, parameters):

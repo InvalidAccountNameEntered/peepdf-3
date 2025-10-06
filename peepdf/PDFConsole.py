@@ -171,6 +171,7 @@ class PDFConsole(cmd.Cmd):
         stdin=None,
         scriptMode=False,
         jsonOutput=False,
+        isCommand=False,
     ):
         global COLORIZED_OUTPUT
         cmd.Cmd.__init__(self, stdin=stdin)
@@ -229,6 +230,7 @@ class PDFConsole(cmd.Cmd):
         self.jsonOutput = jsonOutput
         self.outputVarName = None
         self.outputFileName = None
+        self.isCommand = isCommand
 
     def emptyline(self):
         return
@@ -390,7 +392,7 @@ class PDFConsole(cmd.Cmd):
             f"{newLine}Shows the changelog of the document or version of the document {newLine}"
         )
 
-    def do_clear(self):
+    def do_clear(self, argv):
         clearScreen()
 
     def help_clear(self):
@@ -2104,15 +2106,19 @@ class PDFConsole(cmd.Cmd):
             content = self.variables[src][0]
             if not isJavascript(content):
                 if self.use_rawinput:
-                    res = input(
-                        "The variable may not contain Javascript code, do you want to continue? (y/n) "
-                    )
-                    if res.lower() == "n":
-                        message = (
-                            "[!] Error: The variable does not contain Javascript code"
+                    if not self.isCommand:
+                        res = input(
+                            "The variable may not contain Javascript code, do you want to continue? (y/n) "
                         )
+                        if res.lower() == "n":
+                            message = (
+                                "[!] Error: The variable does not contain Javascript code"
+                            )
+                            self.log_output("js_analyse " + argv, message)
+                            return False
+                    else:
+                        message = f"[!] Executing command... {newLine}"
                         self.log_output("js_analyse " + argv, message)
-                        return False
                 print(
                     f"[!] Warning: The object may not contain Javascript code... {newLine}"
                 )
@@ -2125,17 +2131,20 @@ class PDFConsole(cmd.Cmd):
                 content = srcFile.read()
             if not isJavascript(content):
                 if self.use_rawinput:
-                    res = input(
-                        "The file may not contain Javascript code, do you want to continue? (y/n) "
-                    )
-                    if res.lower() == "n":
-                        message = "[!] Error: The file does not contain Javascript code"
+                    if not self.isCommand:
+                        res = input(
+                            "The file may not contain Javascript code, do you want to continue? (y/n) "
+                        )
+                        if res.lower() == "n":
+                            message = "[!] Error: The file does not contain Javascript code"
+                            self.log_output("js_analyse " + argv, message)
+                            return False
+                    else:
+                        message = f"[!] Executing command... {newLine}"
                         self.log_output("js_analyse " + argv, message)
-                        return False
-                else:
-                    print(
-                        f"[!] Warning: The object may not contain Javascript code... {newLine}"
-                    )
+                print(
+                    f"[!] Warning: The object may not contain Javascript code... {newLine}"
+                )
         elif srcType == "object":
             if self.pdfFile is None:
                 message = "[!] Error: You must open a file"
@@ -2154,22 +2163,27 @@ class PDFConsole(cmd.Cmd):
             obj = self.pdfFile.getObject(src, version)
             if obj is not None:
                 if obj.containsJS():
-                    content = obj.getJSCode()[0]
+                    content = obj.getJSCode()
+                    if content is not None and content != []:
+                        content = content[0]
                 else:
                     if self.use_rawinput:
-                        res = input(
-                            "The object may not contain Javascript code, do you want to continue? (y/n) "
-                        )
-                        if res.lower() == "n":
-                            message = (
-                                "[!] Error: The object does not contain Javascript code"
+                        if not self.isCommand:
+                            res = input(
+                                "The object may not contain Javascript code, do you want to continue? (y/n) "
                             )
+                            if res.lower() == "n":
+                                message = (
+                                    "[!] Error: The object does not contain Javascript code"
+                                )
+                                self.log_output("js_analyse " + argv, message)
+                                return False
+                        else:
+                            message = f"[!] Executing command... {newLine}"
                             self.log_output("js_analyse " + argv, message)
-                            return False
-                    else:
-                        print(
-                            f"[!] Warning: The object may not contain Javascript code... {newLine}"
-                        )
+                    print(
+                        f"[!] Warning: The object may not contain Javascript code... {newLine}"
+                    )
                     objectType = obj.getType()
                     if objectType == "stream":
                         content = obj.getStream()
@@ -2264,19 +2278,22 @@ class PDFConsole(cmd.Cmd):
             content = self.variables[src][0]
             if not isJavascript(content):
                 if self.use_rawinput:
-                    res = input(
-                        "The variable may not contain Javascript code, do you want to continue? (y/n) "
-                    )
-                    if res.lower() == "n":
-                        message = (
-                            "[!] Error: The variable does not contain Javascript code"
+                    if not self.isCommand:
+                        res = input(
+                            "The variable may not contain Javascript code, do you want to continue? (y/n) "
                         )
+                        if res.lower() == "n":
+                            message = (
+                                "[!] Error: The variable does not contain Javascript code"
+                            )
+                            self.log_output("js_beautify " + argv, message)
+                            return False
+                    else:
+                        message = f"[!] Executing command... {newLine}"
                         self.log_output("js_beautify " + argv, message)
-                        return False
-                else:
-                    print(
-                        f"[!] Warning: the object may not contain Javascript code... {newLine}"
-                    )
+                print(
+                    f"[!] Warning: the object may not contain Javascript code... {newLine}"
+                )
         elif srcType == "file":
             if not os.path.exists(src):
                 message = "[!] Error: The file does not exist"
@@ -2286,17 +2303,20 @@ class PDFConsole(cmd.Cmd):
                 content = srcFile.read()
             if not isJavascript(content):
                 if self.use_rawinput:
-                    res = input(
-                        "The file may not contain Javascript code, do you want to continue? (y/n) "
-                    )
-                    if res.lower() == "n":
-                        message = "[!] Error: The file does not contain Javascript code"
+                    if not self.isCommand:
+                        res = input(
+                            "The file may not contain Javascript code, do you want to continue? (y/n) "
+                        )
+                        if res.lower() == "n":
+                            message = "[!] Error: The file does not contain Javascript code"
+                            self.log_output("js_beautify " + argv, message)
+                            return False
+                    else:
+                        message = f"[!] Executing command... {newLine}"
                         self.log_output("js_beautify " + argv, message)
-                        return False
-                else:
-                    print(
-                        f"[!] Warning: the object may not contain Javascript code... {newLine}"
-                    )
+                print(
+                    f"[!] Warning: the object may not contain Javascript code... {newLine}"
+                )
         elif srcType == "string":
             content = src
         else:
@@ -2320,15 +2340,19 @@ class PDFConsole(cmd.Cmd):
                     content = obj.getJSCode()[0]
                 else:
                     if self.use_rawinput:
-                        res = input(
-                            "The object may not contain Javascript code, do you want to continue? (y/n) "
-                        )
-                        if res.lower() == "n":
-                            message = (
-                                "[!] Error: The object does not contain Javascript code"
+                        if not self.isCommand:
+                            res = input(
+                                "The object may not contain Javascript code, do you want to continue? (y/n) "
                             )
+                            if res.lower() == "n":
+                                message = (
+                                    "[!] Error: The object does not contain Javascript code"
+                                )
+                                self.log_output("js_beautify " + argv, message)
+                                return False
+                        else:
+                            message = f"[!] Executing command... {newLine}"
                             self.log_output("js_beautify " + argv, message)
-                            return False
                     else:
                         print(
                             f"[!] Warning: the object may not contain Javascript code... {newLine}"
@@ -2405,9 +2429,12 @@ class PDFConsole(cmd.Cmd):
             jsCode = obj.getJSCode()
             if len(jsCode) > 1:
                 if self.use_rawinput:
-                    res = input(
-                        f"{newLine}There are more than one Javascript code, do you want to see all (1) or just the last one (2)? "
-                    )
+                    if not self.isCommand:
+                        res = input(
+                            f"{newLine}There are more than one Javascript code, do you want to see all (1) or just the last one (2)? "
+                        )
+                    else:
+                        res = "1"
                 else:
                     res = "1"
                 if res == "1":
@@ -2464,15 +2491,19 @@ class PDFConsole(cmd.Cmd):
             content = self.variables[src][0]
             if not isJavascript(content):
                 if self.use_rawinput:
-                    res = input(
-                        "The variable may not contain Javascript code, do you want to continue? (y/n) "
-                    )
-                    if res.lower() == "n":
-                        message = (
-                            "[!] Error: The variable does not contain Javascript code"
+                    if not self.isCommand:
+                        res = input(
+                            "The variable may not contain Javascript code, do you want to continue? (y/n) "
                         )
+                        if res.lower() == "n":
+                            message = (
+                                "[!] Error: The variable does not contain Javascript code"
+                            )
+                            self.log_output("js_eval " + argv, message)
+                            return False
+                    else:
+                        message = f"[!] Executing command... {newLine}"
                         self.log_output("js_eval " + argv, message)
-                        return False
                 else:
                     print(
                         f"[!] Warning: the object may not contain Javascript code... {newLine}"
@@ -2486,13 +2517,17 @@ class PDFConsole(cmd.Cmd):
                 content = srcFile.read()
             if not isJavascript(content):
                 if self.use_rawinput:
-                    res = input(
-                        "The file may not contain Javascript code, do you want to continue? (y/n) "
-                    )
-                    if res.lower() == "n":
-                        message = "[!] Error: The file does not contain Javascript code"
+                    if not self.isCommand:
+                        res = input(
+                            "The file may not contain Javascript code, do you want to continue? (y/n) "
+                        )
+                        if res.lower() == "n":
+                            message = "[!] Error: The file does not contain Javascript code"
+                            self.log_output("js_eval " + argv, message)
+                            return False
+                    else:
+                        message = f"[!] Executing command... {newLine}"
                         self.log_output("js_eval " + argv, message)
-                        return False
                 else:
                     print(
                         f"[!] Warning: the object may not contain Javascript code... {newLine}"
@@ -2518,15 +2553,19 @@ class PDFConsole(cmd.Cmd):
                     content = obj.getJSCode()[0]
                 else:
                     if self.use_rawinput:
-                        res = input(
-                            "The object may not contain Javascript code, do you want to continue? (y/n) "
-                        )
-                        if res.lower() == "n":
-                            message = (
-                                "[!] Error: The object does not contain Javascript code"
+                        if not self.isCommand:
+                            res = input(
+                                "The object may not contain Javascript code, do you want to continue? (y/n) "
                             )
+                            if res.lower() == "n":
+                                message = (
+                                    "[!] Error: The object does not contain Javascript code"
+                                )
+                                self.log_output("js_eval " + argv, message)
+                                return False
+                        else:
+                            message = f"[!] Executing command... {newLine}"
                             self.log_output("js_eval " + argv, message)
-                            return False
                     else:
                         print(
                             f"[!] Warning: the object may not contain Javascript code... {newLine}"
@@ -2620,15 +2659,19 @@ class PDFConsole(cmd.Cmd):
             content = self.variables[src][0]
             if not isJavascript(content):
                 if self.use_rawinput:
-                    res = input(
-                        "The variable may not contain Javascript code, do you want to continue? (y/n) "
-                    )
-                    if res.lower() == "n":
-                        message = (
-                            "[!] Error: The variable does not contain Javascript code"
+                    if not self.isCommand:
+                        res = input(
+                            "The variable may not contain Javascript code, do you want to continue? (y/n) "
                         )
+                        if res.lower() == "n":
+                            message = (
+                                "[!] Error: The variable does not contain Javascript code"
+                            )
+                            self.log_output("js_jjdecode " + argv, message)
+                            return False
+                    else:
+                        message = f"[!] Executing command... {newLine}"
                         self.log_output("js_jjdecode " + argv, message)
-                        return False
                 else:
                     print(
                         f"[!] Warning: the object may not contain Javascript code... {newLine}"
@@ -2642,13 +2685,17 @@ class PDFConsole(cmd.Cmd):
                 content = srcFile.read()
             if not isJavascript(content):
                 if self.use_rawinput:
-                    res = input(
-                        "The file may not contain Javascript code, do you want to continue? (y/n) "
-                    )
-                    if res.lower() == "n":
-                        message = "[!] Error: The file does not contain Javascript code"
+                    if not self.isCommand:
+                        res = input(
+                            "The file may not contain Javascript code, do you want to continue? (y/n) "
+                        )
+                        if res.lower() == "n":
+                            message = "[!] Error: The file does not contain Javascript code"
+                            self.log_output("js_jjdecode " + argv, message)
+                            return False
+                    else:
+                        message = f"[!] Executing command... {newLine}"
                         self.log_output("js_jjdecode " + argv, message)
-                        return False
                 else:
                     print(
                         f"[!] Warning: the object may not contain Javascript code... {newLine}"
@@ -2682,15 +2729,19 @@ class PDFConsole(cmd.Cmd):
                         return False
                 else:
                     if self.use_rawinput:
-                        res = input(
-                            "The object may not contain Javascript code, do you want to continue? (y/n) "
-                        )
-                        if res.lower() == "n":
-                            message = (
-                                "[!] Error: The object does not contain Javascript code"
+                        if not self.isCommand:
+                            res = input(
+                                "The object may not contain Javascript code, do you want to continue? (y/n) "
                             )
+                            if res.lower() == "n":
+                                message = (
+                                    "[!] Error: The object does not contain Javascript code"
+                                )
+                                self.log_output("js_jjdecode " + argv, message)
+                                return False
+                        else:
+                            message = f"[!] Executing command... {newLine}"
                             self.log_output("js_jjdecode " + argv, message)
-                            return False
                     else:
                         print(
                             f"[!] Warning: the object may not contain Javascript code... {newLine}"
@@ -3188,6 +3239,7 @@ class PDFConsole(cmd.Cmd):
                 with open(contentFile, "rb") as streamOut:
                     streamContent = streamOut.read()
             elif self.use_rawinput:
+                ## TODO May modify for use with -C at a later time with self.isCommand.
                 streamContent = input(
                     f"{newLine}Please, specify the stream content"
                     f"(if the content includes EOL characters use a file instead): "
@@ -3247,11 +3299,12 @@ class PDFConsole(cmd.Cmd):
         value = obj.getValue()
         valueLength = len(value)
         if valueLength > 10000 and self.use_rawinput:
-            res = input(
-                f"The object is {valueLength} bytes in size. Are you sure you want to display it? (y/n) "
-            )
-            if res.lower() != "y":
-                return
+            if not self.isCommand:
+                res = input(
+                    f"The object is {valueLength} bytes in size. Are you sure you want to display it? (y/n) "
+                )
+                if res.lower() != "y":
+                    return
             self.log_output("object " + argv, value)
         else:
             self.log_output("object " + argv, value)
@@ -5144,17 +5197,21 @@ class PDFConsole(cmd.Cmd):
                     limit = int(self.variables["output_limit"][0])
                     lines = niceOutput.split(newLine)
                     while len(lines) > 0:
-                        outputStepLines = lines[:limit]
-                        lines = lines[limit:]
-                        for line in outputStepLines:
-                            print(line)
-                        if len(lines) == 0:
-                            break
-                        ch = input(
-                            "( Press <enter> to continue or <q><enter> to quit )"
-                        )
-                        if ch.lower() == "q":
-                            break
+                        if self.isCommand:
+                            for line in lines:
+                                print(line)
+                        else:
+                            outputStepLines = lines[:limit]
+                            lines = lines[limit:]
+                            for line in outputStepLines:
+                                print(line)
+                            if len(lines) == 0:
+                                break
+                            ch = input(
+                                "( Press <enter> to continue or <q><enter> to quit )"
+                            )
+                            if ch.lower() == "q":
+                                break
 
     def modifyObject(
         self, obj, iteration: int = 0, contentFile: str = None, maxDepth: int = 10

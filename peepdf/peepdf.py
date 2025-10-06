@@ -371,7 +371,7 @@ def main():
                             "PeepException", "Open an Issue on GitHub"
                         ) from exc
                 elif args.commands is not None:
-                    console = PDFConsole(pdf, VT_KEY, args.avoidColors)
+                    console = PDFConsole(pdf, VT_KEY, args.avoidColors, isCommand=True)
                     try:
                         for command in args.commands:
                             console.onecmd(command)

@@ -97,7 +97,7 @@ MAL_EOBJ = 3
 MAL_ESTREAM = 4
 MAL_XREF = 5
 MAL_BAD_HEAD = 6
-VERSION = "5.1.1"
+VERSION = "5.2.0"
 IS_ID_1 = False
 IS_ID_2 = False
 pdfFile = None
@@ -1329,8 +1329,6 @@ class PDFDictionary(PDFObject):
         self.rawValue = "<< "
         self.encryptedValue = "<< "
         keys = list(self.elements.keys())
-        if "/Checksum" in keys:
-            test = 1
         values = list(self.elements.values())
         for i, keyValue in enumerate(keys):
             if values[i] is None:
@@ -2172,6 +2170,13 @@ class PDFStream(PDFDictionary):
                             else:
                                 return (-1, errorMessage)
                     if not self.isFaultyDecoding():
+                        if isinstance(self.decodedStream, bytes):
+                            try:
+                                self.decodedStream = self.decodedStream.decode(
+                                    "latin-1"
+                                )
+                            except:
+                                pass
                         refs = re.findall(
                             r"(\d{1,5}\s{1,3}\d{1,5}\s{1,3}R)", self.decodedStream
                         )
@@ -2808,8 +2813,11 @@ class PDFStream(PDFDictionary):
         errorMessage = ""
         if "/Length" in self.referencesInElements:
             value = self.referencesInElements["/Length"][1]
-            self.size = int(value)
-            self.cleanStream()
+            if value.isdigit():
+                self.size = int(value)
+                self.cleanStream()
+            else:
+                return (-1, f"[!] Error resolving Length reference in elements - invalid int: {self.referencesInElements}")
         self.updateNeeded = False
         ret = self.decode()
         if ret[0] == -1:
@@ -3592,8 +3600,11 @@ class PDFObjectStream(PDFStream):
         for compressedId in self.compressedObjectsDict:
             if self.compressedObjectsDict[compressedId] is not None:
                 obj = self.compressedObjectsDict[compressedId][1]
-                obj.setCompressedIn(thisId)
-                self.compressedObjectsDict[compressedId][1] = obj
+                if obj:
+                    obj.setCompressedIn(thisId)
+                    self.compressedObjectsDict[compressedId][1] = obj
+                else:
+                    return (-1, "Compressed object not found")
             else:
                 return (-1, "Compressed object corrupted")
         return (0, "")
