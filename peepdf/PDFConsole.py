@@ -20,7 +20,7 @@
 #        along with peepdf-3. If not, see <http://www.gnu.org/licenses/>.
 
 """
-    Implementation of the interactive console of peepdf
+Implementation of the interactive console of peepdf
 """
 
 import cmd
@@ -2075,7 +2075,6 @@ class PDFConsole(cmd.Cmd):
 
     def do_js_analyse(self, argv):
         content = ""
-        fileName = self.pdfFile.getFileName()
         validTypes = ["variable", "file", "object", "string"]
         if not JS_MODULE:
             message = "[!] Error: STPyV8 is not installed"
@@ -2111,9 +2110,7 @@ class PDFConsole(cmd.Cmd):
                             "The variable may not contain Javascript code, do you want to continue? (y/n) "
                         )
                         if res.lower() == "n":
-                            message = (
-                                "[!] Error: The variable does not contain Javascript code"
-                            )
+                            message = "[!] Error: The variable does not contain Javascript code"
                             self.log_output("js_analyse " + argv, message)
                             return False
                     else:
@@ -2136,7 +2133,9 @@ class PDFConsole(cmd.Cmd):
                             "The file may not contain Javascript code, do you want to continue? (y/n) "
                         )
                         if res.lower() == "n":
-                            message = "[!] Error: The file does not contain Javascript code"
+                            message = (
+                                "[!] Error: The file does not contain Javascript code"
+                            )
                             self.log_output("js_analyse " + argv, message)
                             return False
                     else:
@@ -2173,9 +2172,7 @@ class PDFConsole(cmd.Cmd):
                                 "The object may not contain Javascript code, do you want to continue? (y/n) "
                             )
                             if res.lower() == "n":
-                                message = (
-                                    "[!] Error: The object does not contain Javascript code"
-                                )
+                                message = "[!] Error: The object does not contain Javascript code"
                                 self.log_output("js_analyse " + argv, message)
                                 return False
                         else:
@@ -2283,9 +2280,7 @@ class PDFConsole(cmd.Cmd):
                             "The variable may not contain Javascript code, do you want to continue? (y/n) "
                         )
                         if res.lower() == "n":
-                            message = (
-                                "[!] Error: The variable does not contain Javascript code"
-                            )
+                            message = "[!] Error: The variable does not contain Javascript code"
                             self.log_output("js_beautify " + argv, message)
                             return False
                     else:
@@ -2308,7 +2303,9 @@ class PDFConsole(cmd.Cmd):
                             "The file may not contain Javascript code, do you want to continue? (y/n) "
                         )
                         if res.lower() == "n":
-                            message = "[!] Error: The file does not contain Javascript code"
+                            message = (
+                                "[!] Error: The file does not contain Javascript code"
+                            )
                             self.log_output("js_beautify " + argv, message)
                             return False
                     else:
@@ -2345,9 +2342,7 @@ class PDFConsole(cmd.Cmd):
                                 "The object may not contain Javascript code, do you want to continue? (y/n) "
                             )
                             if res.lower() == "n":
-                                message = (
-                                    "[!] Error: The object does not contain Javascript code"
-                                )
+                                message = "[!] Error: The object does not contain Javascript code"
                                 self.log_output("js_beautify " + argv, message)
                                 return False
                         else:
@@ -2465,6 +2460,10 @@ class PDFConsole(cmd.Cmd):
             message = "[!] Error: STPyV8 is not installed"
             self.log_output("js_eval " + argv, message)
             return False
+        try:
+            from peepdf.JSAnalysis import Global
+        except ModuleNotFoundError:
+            from JSAnalysis import Global
         validTypes = ["variable", "file", "object", "string"]
         args = self.parseArgs(argv)
         if args is None:
@@ -2496,9 +2495,7 @@ class PDFConsole(cmd.Cmd):
                             "The variable may not contain Javascript code, do you want to continue? (y/n) "
                         )
                         if res.lower() == "n":
-                            message = (
-                                "[!] Error: The variable does not contain Javascript code"
-                            )
+                            message = "[!] Error: The variable does not contain Javascript code"
                             self.log_output("js_eval " + argv, message)
                             return False
                     else:
@@ -2522,7 +2519,9 @@ class PDFConsole(cmd.Cmd):
                             "The file may not contain Javascript code, do you want to continue? (y/n) "
                         )
                         if res.lower() == "n":
-                            message = "[!] Error: The file does not contain Javascript code"
+                            message = (
+                                "[!] Error: The file does not contain Javascript code"
+                            )
                             self.log_output("js_eval " + argv, message)
                             return False
                     else:
@@ -2550,7 +2549,9 @@ class PDFConsole(cmd.Cmd):
             obj = self.pdfFile.getObject(src, version)
             if obj is not None:
                 if obj.containsJS():
-                    content = obj.getJSCode()[0]
+                    content = obj.getJSCode()
+                    if content is not None and content != []:
+                        content = content[0]
                 else:
                     if self.use_rawinput:
                         if not self.isCommand:
@@ -2558,9 +2559,7 @@ class PDFConsole(cmd.Cmd):
                                 "The object may not contain Javascript code, do you want to continue? (y/n) "
                             )
                             if res.lower() == "n":
-                                message = (
-                                    "[!] Error: The object does not contain Javascript code"
-                                )
+                                message = "[!] Error: The object does not contain Javascript code"
                                 self.log_output("js_eval " + argv, message)
                                 return False
                         else:
@@ -2616,7 +2615,7 @@ class PDFConsole(cmd.Cmd):
         except:
             error = str(sys.exc_info()[1])
             errorFile = f"jserror-{dt.now().strftime(DTFMT)}.log"
-            with open(errorFile, "ab") as errorOut:
+            with open(errorFile, "a") as errorOut:
                 errorOut.write(f"{error}{newLine}")
 
         if error != "":
@@ -2664,9 +2663,7 @@ class PDFConsole(cmd.Cmd):
                             "The variable may not contain Javascript code, do you want to continue? (y/n) "
                         )
                         if res.lower() == "n":
-                            message = (
-                                "[!] Error: The variable does not contain Javascript code"
-                            )
+                            message = "[!] Error: The variable does not contain Javascript code"
                             self.log_output("js_jjdecode " + argv, message)
                             return False
                     else:
@@ -2690,7 +2687,9 @@ class PDFConsole(cmd.Cmd):
                             "The file may not contain Javascript code, do you want to continue? (y/n) "
                         )
                         if res.lower() == "n":
-                            message = "[!] Error: The file does not contain Javascript code"
+                            message = (
+                                "[!] Error: The file does not contain Javascript code"
+                            )
                             self.log_output("js_jjdecode " + argv, message)
                             return False
                     else:
@@ -2734,9 +2733,7 @@ class PDFConsole(cmd.Cmd):
                                 "The object may not contain Javascript code, do you want to continue? (y/n) "
                             )
                             if res.lower() == "n":
-                                message = (
-                                    "[!] Error: The object does not contain Javascript code"
-                                )
+                                message = "[!] Error: The object does not contain Javascript code"
                                 self.log_output("js_jjdecode " + argv, message)
                                 return False
                         else:
@@ -5196,11 +5193,11 @@ class PDFConsole(cmd.Cmd):
                 else:
                     limit = int(self.variables["output_limit"][0])
                     lines = niceOutput.split(newLine)
-                    while len(lines) > 0:
-                        if self.isCommand:
-                            for line in lines:
-                                print(line)
-                        else:
+                    if self.isCommand:
+                        for line in lines:
+                            print(line)
+                    else:
+                        while len(lines) > 0:
                             outputStepLines = lines[:limit]
                             lines = lines[limit:]
                             for line in outputStepLines:
