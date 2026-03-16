@@ -20,7 +20,7 @@
 #        along with peepdf-3. If not, see <http://www.gnu.org/licenses/>.
 
 """
-    Module with some misc functions
+Module with some misc functions
 """
 
 import os

@@ -20,7 +20,7 @@
 #        along with peepdf-3. If not, see <http://www.gnu.org/licenses/>.
 
 """
-    This module contains some functions to analyse Javascript code inside the PDF file
+This module contains some functions to analyse Javascript code inside the PDF file
 """
 
 import os

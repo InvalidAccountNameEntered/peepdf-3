@@ -937,14 +937,14 @@ def jbig2Decode(stream, parameters):
     """
     jbig2_globals = ""
     jbig2_page = ""
-    #header = '974A42320D0A1A0A0100000001'
+    # header = '974A42320D0A1A0A0100000001'
     # JBIG2Globals reference is next. If /JBIGGlobals 1 0 R, then ref 1 contains JBIG2Globals
     # Then content from stream with JBIG2Decode
-    #end_of_page = '0000000331000100000000'
-    #end_of_file = '00000004330100000000'
-    #Concat all together to make full JBIG2 file.
+    # end_of_page = '0000000331000100000000'
+    # end_of_file = '00000004330100000000'
+    # Concat all together to make full JBIG2 file.
     return (0, stream.encode().hex())
-    #return (-1, "Jbig2Decode not supported yet")
+    # return (-1, "Jbig2Decode not supported yet")
 
 
 def jbig2Encode(stream, parameters):

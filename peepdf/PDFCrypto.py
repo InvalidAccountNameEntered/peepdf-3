@@ -20,7 +20,7 @@
 #        along with peepdf-3. If not, see <http://www.gnu.org/licenses/>.
 
 """
-    Module to manage cryptographic operations with PDF files
+Module to manage cryptographic operations with PDF files
 """
 
 import hashlib
@@ -33,7 +33,7 @@ from aespython import key_expander, aes_cipher, cbc_mode
 
 warnings.filterwarnings("ignore")
 
-paddingString = b"\x28\xBF\x4E\x5E\x4E\x75\x8A\x41\x64\x00\x4E\x56\xFF\xFA\x01\x08\x2E\x2E\x00\xB6\xD0\x68\x3E\x80\x2F\x0C\xA9\xFE\x64\x53\x69\x7A"
+paddingString = b"\x28\xbf\x4e\x5e\x4e\x75\x8a\x41\x64\x00\x4e\x56\xff\xfa\x01\x08\x2e\x2e\x00\xb6\xd0\x68\x3e\x80\x2f\x0c\xa9\xfe\x64\x53\x69\x7a"
 
 
 def computeEncryptionKey(
@@ -78,7 +78,7 @@ def computeEncryptionKey(
                 password + dictOwnerPass + struct.pack("<i", int(pElement)) + fileID
             )
             if revision > 3 and not encryptMetadata:
-                md5input += b"\xFF" * 4
+                md5input += b"\xff" * 4
             key = hashlib.md5(md5input).digest()
             if revision > 2:
                 counter = 0
@@ -131,7 +131,7 @@ def computeObjectKey(
             + struct.pack("<i", generationNum)[:2]
         )
         if algorithm == "AES":
-            key += "\x73\x41\x6C\x54"  # sAlT
+            key += "\x73\x41\x6c\x54"  # sAlT
         key = hashlib.md5(key).digest()
         if keyLengthBytes + 5 < 16:
             key = key[: keyLengthBytes + 5]

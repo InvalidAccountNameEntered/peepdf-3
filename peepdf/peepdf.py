@@ -22,7 +22,7 @@
 #        along with peepdf-3. If not, see <http://www.gnu.org/licenses/>.
 
 """
-    Initial script to launch the tool
+Initial script to launch the tool
 """
 
 import sys
@@ -339,7 +339,9 @@ def main():
                         "[!] Error: Exception while generating the JSON report"
                     )
                     excMessage = str(exc)
-                    json_output = json.dumps({'error': errorMessage, 'exception': excMessage})
+                    json_output = json.dumps(
+                        {"error": errorMessage, "exception": excMessage}
+                    )
                     logger.error(json_output)
                     raise Exception("PeepException", "Open an Issue on GitHub") from exc
             else:

@@ -22,7 +22,7 @@
 #        along with peepdf-3. If not, see <http://www.gnu.org/licenses/>.
 
 """
-    This module contains the vulnerabilities to analyse for peepdf-3
+This module contains the vulnerabilities to analyse for peepdf-3
 """
 
 vulnsVersion = "1.0.1"
