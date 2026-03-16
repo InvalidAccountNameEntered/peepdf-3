@@ -68,17 +68,15 @@ VT_KEY = f"YOUR KEY GOES ON LINE 66 OF {__file__}, USE set vt_key yourAPIkey in 
 
 def main():
     global COLORIZED_OUTPUT, errorsFile
-    versionHeader = f"Version: peepdf {VERSION}"
-    author = "Jose Miguel Esparza and Corey Forman"
     url = "https://github.com/digitalsleuth/peepdf-3"
     newLine = os.linesep
+    versionHeader = f"peepdf v{VERSION} - {url}"
     now = dt.now().strftime(DTFMT)
     ERROR_LOG = f"peepdf-errors-NOFILE-{now}.txt"
     errorsFile = os.path.join(os.getcwd(), ERROR_LOG)
     argsParser = argparse.ArgumentParser(
         usage="peepdf [options] pdf",
         description=versionHeader,
-        epilog=f"{versionHeader}{newLine}{url}{newLine}{author}{newLine}",
     )
     argsParser.add_argument(
         "pdf",
