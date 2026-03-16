@@ -149,7 +149,7 @@ Creates an object stream choosing the objects to be compressed.
 
 PPDF> create object_stream
 
-Warning: stream objects cannot be compressed. If the Catalog object is compressed could lead to corrupted files for Adobe Reader!! Which objects do you want to compress? (Valid responses: all | 1-5 | 1,2,5,7,8) all
+Warning: stream objects cannot be compressed. If the Catalog object is compressed could lead to corrupted files for Adobe Reader!! Which objects do you want to compress? (Valid respones: all | 1-5 | 1,2,5,7,8) all
 
 [*] Warning: Stream objects cannot be compressed!
 
@@ -212,10 +212,10 @@ Usage: encode raw offset num_bytes filter1 [filter2 ...]
 Encode the content of the specified variable, file or raw bytes using the following filters or algorithms:
   base64,b64: Base64
   asciihex,ahx: /ASCIIHexDecode
-  ascii85,a85: /ASCII85Decode (Not implemented)
+  ascii85,a85: /ASCII85Decode (in beta)
   lzw: /LZWDecode
   flatedecode,fl: /FlateDecode
-  runlength,rl: /RunLengthDecode (Not implemented)
+  runlength,rl: /RunLengthDecode (in beta)
   ccittfax,ccf: /CCITTFaxDecode (Not implemented)
   jbig2: /JBIG2Decode (Not implemented)
   dct: /DCTDecode (Not implemented)
@@ -297,10 +297,10 @@ Shows the filters found in the stream object or set the filters in the object (f
 The valid values for filters are the following:
   none: No filters
   asciihex,ahx: /ASCIIHexDecode
-  ascii85,a85: /ASCII85Decode (Not implemented)
+  ascii85,a85: /ASCII85Decode (in beta)
   lzw: /LZWDecode
   flatedecode,fl: /FlateDecode
-  runlength,rl: /RunLengthDecode (Not implemented)
+  runlength,rl: /RunLengthDecode (in beta)
   ccittfax,ccf: /CCITTFaxDecode (Not implemented)
   jbig2: /JBIG2Decode (Not implemented)
   dct: /DCTDecode (Not implemented)
@@ -969,7 +969,7 @@ Usage: reset
 Cleans the console
 
 Usage: reset var_name
-Resets the variable value to the default value if applicable It's specially useful when we change the standard output of the console to a file or variable to restore it to the normal output. See the [set] command.
+Resets the variable value to the default value if applicable It's specially useful when we change the standard ouput of the console to a file or variable to restore it to the normal output. See the [set] command.
 
 PPDF> reset output
 
