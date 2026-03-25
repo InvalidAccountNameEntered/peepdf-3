@@ -239,7 +239,7 @@ def main():
             staticColor = Fore.BLUE
             resetColor = Style.RESET_ALL
         if args.version:
-            print(argsParser.epilog)
+            print(versionHeader)
             argsParser.exit()
         if args.update:
             if numArgs > 1:
