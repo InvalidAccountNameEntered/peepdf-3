@@ -64,16 +64,15 @@ except ModuleNotFoundError:
     COLORIZED_OUTPUT = False
 
 VT_KEY = f"YOUR KEY GOES ON LINE 66 OF {__file__}, USE set vt_key yourAPIkey in interactive mode instead of -c, OR use -k yourAPIkey with -c"
-now = dt.now().strftime(DTFMT)
-ERROR_LOG = f"peepdf-errors-NOFILE-{now}.txt"
-errorsFile = os.path.join(os.getcwd(), ERROR_LOG)
 
 def main():
     global COLORIZED_OUTPUT, errorsFile
     url = "https://github.com/digitalsleuth/peepdf-3"
     newLine = os.linesep
     versionHeader = f"peepdf v{VERSION} - {url}"
-
+    now = dt.now().strftime(DTFMT)
+    ERROR_LOG = f"peepdf-errors-NOFILE-{now}.txt"
+    errorsFile = os.path.join(os.getcwd(), ERROR_LOG)
     argsParser = argparse.ArgumentParser(
         usage="peepdf [options] pdf",
         description=versionHeader,
