@@ -186,10 +186,9 @@ def main():
     )
     argsParser.add_argument(
         "--log",
-        action="store_true",
         dest="log",
-        default=False,
-        help="Enables logging to file.",
+        default=errorsFile,
+        help="Log errors to file. Default: %(default)",
     )
     argsParser.add_argument(
         "--silent",
