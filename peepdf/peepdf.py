@@ -71,8 +71,7 @@ def main():
     newLine = os.linesep
     versionHeader = f"peepdf v{VERSION} - {url}"
     now = dt.now().strftime(DTFMT)
-    ERROR_LOG = f"peepdf-errors-NOFILE-{now}.txt"
-    errorsFile = os.path.join(os.getcwd(), ERROR_LOG)
+
     argsParser = argparse.ArgumentParser(
         usage="peepdf [options] pdf",
         description=versionHeader,
@@ -186,8 +185,9 @@ def main():
     argsParser.add_argument(
         "--log",
         dest="log",
-        default=errorsFile,
-        help="Log errors to file. Default: %(default)",
+        default=None,
+        help="Log errors to a file.",
+        
     )
     argsParser.add_argument(
         "--silent",
@@ -211,12 +211,17 @@ def main():
     fileName = args.pdf
     statsDict = None
     vtJsonDict = None
+
+    errorsFile = os.path.join(os.getcwd(), f"peepdf-errors-NOFILE-{now}.txt")
     if fileName is not None and os.path.exists(os.path.abspath(fileName)):
-        errorsFile = f"{os.path.abspath(args.pdf)}-{now}-peepdf.log"
+        if args.log:
+            errorsFile = args.log
+        else:
+            errorsFile = f"{os.path.abspath(args.pdf)}-{now}-peepdf.log"
     elif fileName is not None and not os.path.exists(os.path.abspath(fileName)):
         argsParser.error(f'[!] Error: The file "{args.pdf}" does not exist')
     logger = ppdfLog(
-        log_to_file=args.log,
+        log_to_file=errorsFile,
         silent=args.silent,
         file=errorsFile,
         logger_name="peepdf",
