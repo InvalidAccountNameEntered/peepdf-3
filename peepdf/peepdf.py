@@ -67,13 +67,11 @@ VT_KEY = f"YOUR KEY GOES ON LINE 66 OF {__file__}, USE set vt_key yourAPIkey in 
 
 
 def main():
-    global COLORIZED_OUTPUT, errorsFile
+    global COLORIZED_OUTPUT
     url = "https://github.com/digitalsleuth/peepdf-3"
     newLine = os.linesep
     versionHeader = f"peepdf v{VERSION} - {url}"
     now = dt.now().strftime(DTFMT)
-    ERROR_LOG = f"peepdf-errors-NOFILE-{now}.txt"
-    errorsFile = os.path.join(os.getcwd(), ERROR_LOG)
     argsParser = argparse.ArgumentParser(
         usage="peepdf [options] pdf",
         description=versionHeader,
@@ -192,6 +190,11 @@ def main():
         help="Enables logging to file.",
     )
     argsParser.add_argument(
+        "--output",
+        default=None,
+        help="Path to output log file (replaces default log file), requires --log",
+    )
+    argsParser.add_argument(
         "--silent",
         action="store_true",
         dest="silent",
@@ -213,16 +216,46 @@ def main():
     fileName = args.pdf
     statsDict = None
     vtJsonDict = None
+    log = args.log
+    output = args.output
+    ERROR_LOG = f"peepdf-errors-NOFILE-{now}.txt"
+    errorsFile = os.path.join(os.getcwd(), ERROR_LOG)
+    LOG_FILE = f"peepdf-NOFILE-{now}.txt"
+    errorLogger = None
     if fileName is not None and os.path.exists(os.path.abspath(fileName)):
-        errorsFile = f"{os.path.abspath(args.pdf)}-{now}-peepdf.log"
+        errorsFile = f"{os.path.abspath(fileName)}-{now}-peepdf-errors.txt"
+        LOG_FILE = f"{os.path.abspath(fileName)}-{now}-peepdf.txt"
     elif fileName is not None and not os.path.exists(os.path.abspath(fileName)):
-        argsParser.error(f'[!] Error: The file "{args.pdf}" does not exist')
+        argsParser.error(f'[!] Error: The file "{fileName}" does not exist')
+    if args.isInteractive:
+        log = False
+        output = None
+    if log and output and os.path.exists(os.path.dirname(output)):
+        if os.path.exists(output) and os.path.isfile(output):
+            outfile, ext = os.path.splitext(output)
+            LOG_FILE = f"{outfile}-{now}{ext}"
+            errorsFile = f"{outfile}-errors-{now}{ext}"
+        else:
+            LOG_FILE = output
+            outfile, ext = os.path.splitext(output)
+            errorsFile = f"{outfile}-errors{ext}"
     logger = ppdfLog(
-        log_to_file=args.log,
+        log_to_file=log,
         silent=args.silent,
-        file=errorsFile,
+        file=LOG_FILE,
         logger_name="peepdf",
+        level="INFO",
     )
+
+    def getErrorLogger():
+        errorLogger = ppdfLog(
+            log_to_file=log,
+            silent=args.silent,
+            file=errorsFile,
+            logger_name="peepdf-errors",
+            level="ERROR",
+        )
+        return errorLogger
 
     try:
         # Avoid colors in the output
@@ -239,7 +272,7 @@ def main():
             staticColor = Fore.BLUE
             resetColor = Style.RESET_ALL
         if args.version:
-            print(argsParser.epilog)
+            print(f"peepdf v{VERSION}")
             argsParser.exit()
         if args.update:
             if numArgs > 1:
@@ -259,6 +292,10 @@ def main():
                     errorMessage = "[!] Error: Exception while launching Interactive mode without a PDF file"
                     logger.error(errorMessage)
                     logger.error(str(exc))
+                    if not errorLogger:
+                        errorLogger = getErrorLogger()
+                    errorLogger.error(errorMessage)
+                    errorLogger.error(str(exc))
                     raise Exception("PeepException", "Open an Issue on GitHub") from exc
             elif (numArgs > 4 and not fileName) or (
                 numArgs == 0 and not args.isInteractive
@@ -280,9 +317,9 @@ def main():
                     args.isManualAnalysis,
                 )
                 if args.getText:
-                    output = pdfParser.getText(fileName)
-                    sys.stdout.write(f"Text content of: {fileName}{newLine}")
-                    sys.stdout.write(output)
+                    text_output = pdfParser.getText(fileName)
+                    logger.info(f"Text content of: {fileName}{newLine}")
+                    logger.info(text_output)
                     raise SystemExit(0)
                 if args.checkOnVT and "vt_key" not in args.vtApiKey:
                     # Checks the MD5 on VirusTotal
@@ -322,16 +359,20 @@ def main():
                 try:
                     xml = getPeepXML(statsDict, VERSION)
                     xml = xml.decode("latin-1")
-                    sys.stdout.write(xml)
+                    logger.info(xml)
                 except Exception as exc:
                     errorMessage = "[!] Error: Exception while generating the XML file"
                     logger.error(errorMessage)
                     logger.error(str(exc))
+                    if not errorLogger:
+                        errorLogger = getErrorLogger()
+                    errorLogger.error(errorMessage)
+                    errorLogger.error(str(exc))
                     raise Exception("PeepException", "Open an Issue on GitHub") from exc
             elif args.jsonOutput and not args.commands:
                 try:
                     jsonReport = getPeepJSON(statsDict, VERSION)
-                    sys.stdout.write(jsonReport)
+                    logger.info(jsonReport)
                 except Exception as exc:
                     errorMessage = (
                         "[!] Error: Exception while generating the JSON report"
@@ -341,6 +382,9 @@ def main():
                         {"error": errorMessage, "exception": excMessage}
                     )
                     logger.error(json_output)
+                    if not errorLogger:
+                        errorLogger = getErrorLogger()
+                    errorLogger.error(json_output)
                     raise Exception("PeepException", "Open an Issue on GitHub") from exc
             else:
                 if COLORIZED_OUTPUT and not args.avoidColors:
@@ -367,6 +411,10 @@ def main():
                         scriptFileObject.close()
                         logger.error(errorMessage)
                         logger.error(str(exc))
+                        if not errorLogger:
+                            errorLogger = getErrorLogger()
+                        errorLogger.error(errorMessage)
+                        errorLogger.error(str(exc))
                         raise Exception(
                             "PeepException", "Open an Issue on GitHub"
                         ) from exc
@@ -381,6 +429,10 @@ def main():
                         )
                         logger.error(errorMessage)
                         logger.error(str(exc))
+                        if not errorLogger:
+                            errorLogger = getErrorLogger()
+                        errorLogger.error(errorMessage)
+                        errorLogger.error(str(exc))
                         raise Exception(
                             "PeepException", "Open an Issue on GitHub"
                         ) from exc
@@ -614,14 +666,14 @@ def main():
                         niceOutput = niceOutput.replace("\r\n", "\n")
                         niceOutput = niceOutput.replace("\r", "\n")
                         niceOutput += newLine * 2
-                        sys.stdout.write(niceOutput)
+                        logger.info(niceOutput)
                     if args.isInteractive:
                         console = PDFConsole(pdf, VT_KEY, args.avoidColors)
                         while not console.leaving:
                             try:
                                 console.cmdloop()
                             except KeyboardInterrupt:
-                                sys.stdout.write("\n")
+                                logger.info("\n")
                             except Exception as exc:
                                 errorMessage = "[!] Error: Exception not handled using the interactive console - please report it to the author."
                                 print(
@@ -629,6 +681,10 @@ def main():
                                 )
                                 logger.error(errorMessage)
                                 logger.error(str(exc))
+                                if not errorLogger:
+                                    errorLogger = getErrorLogger()
+                                errorLogger.error(errorMessage)
+                                errorLogger.error(str(exc))
     except Exception as e:
         if len(e.args) == 2:
             excName, _ = e.args
@@ -638,14 +694,15 @@ def main():
             errorMessage = "[!] Error: Exception not handled"
             logger.error(errorMessage)
             logger.error(str(e))
+            if not errorLogger:
+                errorLogger = getErrorLogger()
+            errorLogger.error(errorMessage)
+            errorLogger.error(str(e))
         logger.error(errorMessage)
     finally:
-        if os.path.exists(errorsFile):
+        if os.path.exists(errorsFile) and os.path.getsize(errorsFile) != 0:
             message = f"{newLine}Please don't forget to report the errors found in file {errorsFile}:{newLine * 2}"
-            message += (
-                f"\t- Create an issue on the project webpage "
-                f"(https://github.com/digitalsleuth/peepdf-3){newLine}"
-            )
+            message += f"- Create an issue at https://github.com/digitalsleuth/peepdf-3{newLine}"
             message = f"{errorColor}{message}{resetColor}"
             sys.exit(message)
 

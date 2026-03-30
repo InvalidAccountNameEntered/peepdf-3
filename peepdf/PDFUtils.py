@@ -43,25 +43,42 @@ except ModuleNotFoundError:
 DTFMT = "%Y%m%d-%H%M%S"
 
 
-def ppdfLog(log_to_file=False, silent=False, file=None, enc="utf-8", logger_name=None):
+class StripColors(logging.Formatter):
+    color_regex = re.compile(r"\x1b\[[0-9;]*m")
+
+    def format(self, record):
+        message = super().format(record)
+        return self.color_regex.sub("", message)
+
+
+def ppdfLog(
+    log_to_file=False,
+    silent=False,
+    file=None,
+    enc="utf-8",
+    logger_name=None,
+    level="INFO",
+):
+    levels = {
+        "INFO": logging.INFO,
+        "DEBUG": logging.DEBUG,
+        "WARNING": logging.WARNING,
+        "ERROR": logging.ERROR,
+        "CRITICAL": logging.CRITICAL,
+    }
+    logLevel = levels.get(level, "INFO")
     logger = logging.getLogger(logger_name)
+    logger.setLevel(logLevel)
     if logger.hasHandlers():
         logger.handlers.clear()
     if not silent:
-        stdout_fmt = logging.Formatter(
-            "%(asctime)s | %(levelname)-8s | %(message)s", datefmt=DTFMT
-        )
         stdout = logging.StreamHandler(stream=sys.stdout)
-        stdout.setLevel(logging.WARNING)
-        stdout.setFormatter(stdout_fmt)
+        stdout.setLevel(logLevel)
         logger.addHandler(stdout)
     if log_to_file:
-        log_fmt = logging.Formatter(
-            "%(asctime)s | %(levelname)-8s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-        )
         log_file = logging.FileHandler(file, encoding=enc)
-        log_file.setLevel(logging.WARNING)
-        log_file.setFormatter(log_fmt)
+        log_file.setLevel(logLevel)
+        log_file.setFormatter(StripColors("%(message)s"))
         logger.addHandler(log_file)
 
     return logger

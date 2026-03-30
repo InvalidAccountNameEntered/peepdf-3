@@ -53,6 +53,7 @@ except ModuleNotFoundError:
     JS_MODULE = False
     STPyV8 = None
 
+
 now = dt.now().strftime(DTFMT)
 newLine = os.linesep
 reJSscript = r"<script[^>]*?contentType\s*?=\s*?['\"]application/x-javascript['\"][^>]*?>(.*?)</script>"
@@ -76,17 +77,11 @@ def analyseJS(code: str, context=None, manualAnalysis: bool = False, src: str = 
     jsCode = []
     unescapedBytes = []
     urlsFound = []
+    logger = None
     if src:
-        errorsFile = f"{os.path.abspath(src)}-peepdf-jserrors-{now}.txt"
+        errorsFile = f"{os.path.abspath(src)}-{now}-peepdf-jserrors.txt"
     else:
-        errorsFile = os.path.join(os.getcwd(), f"peepdf-jserrors-NOFILE-{now}.txt")
-    logger = ppdfLog(
-        log_to_file=True,
-        silent=True,
-        file=errorsFile,
-        enc="latin-1",
-        logger_name="peepdf-js",
-    )
+        errorsFile = os.path.join(os.getcwd(), f"{now}-peepdf-jserrors-NOFILE.txt")
     try:
         code = unescapeHTMLEntities(code)
         scriptElements = re.findall(reJSscript, code, re.DOTALL | re.IGNORECASE)
@@ -115,6 +110,14 @@ def analyseJS(code: str, context=None, manualAnalysis: bool = False, src: str = 
                     else:
                         break
                 except Exception as exc:
+                    if not logger:
+                        logger = ppdfLog(
+                            log_to_file=True,
+                            silent=True,
+                            file=errorsFile,
+                            enc="latin-1",
+                            logger_name="peepdf-js",
+                        )
                     error = str(exc)
                     logger.error(error)
                     errors.append(error)
@@ -154,6 +157,14 @@ def analyseJS(code: str, context=None, manualAnalysis: bool = False, src: str = 
         pass
     except Exception as exc:
         error = "Unexpected error in the JSAnalysis module!"
+        if not logger:
+            logger = ppdfLog(
+                log_to_file=True,
+                silent=True,
+                file=errorsFile,
+                enc="latin-1",
+                logger_name="peepdf-js",
+            )
         logger.error(error)
         logger.error(str(exc))
         errors.append(error)
